@@ -6,13 +6,21 @@ There is no dry-run: `run_pickaxe_completion`'s config parameter does not overri
 
 A staging workflow that has held up in production:
 
-1. **Check out**: copy the live tool's full field set onto the private staging bot (role, model reminder, model, temperature, reasoning effort, knowledge document attachments). Overwrite everything, so nothing leaks from the previous checkout.
-2. **Verify the checkout**: read the staging bot back and compare every copied field against the source. Fields that did not stick fail loudly here instead of corrupting your test results.
+1. **Check out**: copy the live tool's full field set onto the private staging bot: role, model reminder, the prompt frame and its raw HTML twin, model, temperature, reasoning effort, knowledge document attachments, and the type flags when the tool is a form-plus-chat hybrid. Overwrite everything, so nothing leaks from the previous checkout. The prompt frame is the field most often forgotten, and forgetting it stages a bot with the persona and nothing else. In one workspace audit, 72 of 88 tools kept at least half their prompt text in the frame, and every form field lives there.
+2. **Verify the checkout**: read the staging bot back and compare against the full set of fields that determine behavior, not the subset you chose to copy. A verify that only compares what the copier remembered always agrees with the copier. A real checkout printed a clean verification over an empty prompt frame exactly this way.
 3. Iterate on the staging bot with `pickaxe_update` and `run_pickaxe_completion`.
 4. **Apply**: write the final prompt to the live tool in one operation, and read it back.
 5. **Release**: reset the staging bot to an empty state so the next checkout starts clean.
 
 Give staging bots large input limits (`chatinputlength`, `endusertokens`, `membuffer`) so full-length real inputs fit in a completion message. Remember that own-key actions cannot be copied programmatically (actions reference), so action-dependent tools need a manual key attach before end-to-end staging runs.
+
+## Verifying form changes
+
+Staging bots configured as chat cannot exercise form fields, so form changes get checked on a real deployment. Three mechanics matter:
+
+- **Drive the embed's own URL, not the page that frames it.** The tool renders inside an iframe, so the host page's accessibility tree contains none of the form's elements and element lookups return nothing, even though the form is plainly visible in a screenshot. Read the iframe's `src` and navigate to it directly, where element references and file uploads work normally. Two checks worth running there: a required field is enforced by keeping the submit button disabled rather than by an error message, and the file input's `accept` attribute lists what the client will take, which beats guessing with uploads.
+- **A rendered deployment is propagation evidence, not enforcement evidence.** Rendering a deployment's HTML confirms a configured cap or label reached the form (embed deployments only, direct-link deployments refuse to render). The render is intermittently empty, a payload-free shell with zero field labels, so an empty render is not evidence a write failed. Retry until labels appear. And a static render cannot prove runtime behavior, because counters and validation bind to client state a saved page never initializes. Verify enforcement in a live session or record it as unmeasured.
+- **Prove a field injects by reading the run's recorded inputs.** Output that looks right does not prove a new field reached the model, which may be inferring the same value from other input such as an uploaded document. A completed run records its submitted inputs as a `Field: value` line above the response in the tool's history. Reading that line is direct evidence the value was captured, and it shows how an empty optional field is represented. Check it before designing a decoy-value experiment, since it usually makes one unnecessary.
 
 ## Verify every mutation by reading state back
 
@@ -59,6 +67,12 @@ Minimum discipline for an A/B on a retrieval tool:
 - Compare pooled means, and treat small differences as noise.
 - Before diagnosing a prompt defect from a bad batch, re-run the unmodified prompt in a fresh window to check the failure reproduces at all.
 
+## Two platform signals that mislead diagnosis
+
+**The workspace fallback can serve a model you did not choose.** Pickaxe has a workspace-wide Fallback Model toggle (Settings, Agent tab) that silently retries a failed primary model on a backup, for every bot in the workspace at once, and it can be on without the builder having chosen it. Nothing surfaces when it fires: no indicator, no API flag, no reason code. A run that silently fell back is an invisible confound in any quality investigation, and the likely wrong conclusion is a prompt defect that is not there. Check the toggle before tuning a prompt, check the per-message insights panel where a transcript exists, and treat "which model actually ran" as unverifiable over the API (observed August 2026).
+
+**A bot's `updatedAt` is not evidence its prompt changed.** Nightly platform processes restamp most bots in a workspace within minutes of one another, so a timestamp that lines up suggestively with the date a user started complaining usually means nothing. Reading one as a prompt change has produced a confident, detailed, and entirely wrong account of a regression, caught only by checking version-controlled exports, which are the only reliable record of when content actually moved (source-of-truth reference).
+
 ## Grade against ground truth, not by reading
 
 For tools that analyze a document, build a quote-anchored answer key for a fixed test corpus once, then grade outputs against the key mechanically. Building the key is expensive (a full careful read). Grading against it is cheap and repeatable, and it catches confident wrong answers that a casual read of the output misses.
@@ -82,3 +96,7 @@ Principles distilled from documented failures, all reproducible when found:
 ## What only the UI can test
 
 The completion API cannot attach files. File upload, transcription, and format acceptance can only be tested through the real embed or Studio preview. Keep a tiny known-content test file per format so the check takes seconds.
+
+Match the transport to the claim being tested, because form testing over the API has three levels, not two. A bare `message` string bypasses the form entirely. An `inputs` object keyed by the frame's `userinput:*` field ids drives the real form path, including what the model does with a full document. But even `inputs` text arrives already extracted, so it proves nothing about whether the platform parses a real user's uploaded file. An API reproduction that passes clean text does not clear the file-handling path, so when a user reports garbled or partial content from an upload, state which layer a passing test actually covered.
+
+The no-fetch limitation doubles as an error-path test. Sending a URL as a bare string does not run the platform's fetch, so the call lands on whatever branch the prompt defines for "no usable content arrived," which makes that branch testable on demand even though the natural failure it stands in for cannot be scheduled. Paste representative content directly into the field to test the happy path the same way. Both halves are prompt-level tests only.

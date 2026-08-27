@@ -46,6 +46,12 @@ Three decisions dominate per-run cost and runtime:
 
 For retrieval-heavy tools, remember the token allocation waterfall (knowledge base reference): raising one budget starves another, and the failure is silent.
 
+## Per-run cost cannot be measured from the API
+
+Completions return generated text and a success flag with no usage block, no input token count, and no output token count. The platform's own per-message cost and latency telemetry lives only in the Studio UI. So an API-driven model comparison can measure latency, output length, and instruction compliance, but any cost figure in it is modeled from provider list prices rather than measured, and should be labeled that way in the writeup.
+
+Two things break naive cost models. A model family can change its tokenizer between versions, so identical input text bills a different token count at unchanged per-token pricing, and a newer model at the same sticker price can be materially more expensive per run. And the platform resells inference in credits without publishing per-model rates, so first-party provider pricing is a proxy, not the bill. Establish a token baseline on the actual input before concluding a model is cheaper or dearer, and beware comparisons run during a provider's promotional pricing window, which give the wrong answer for the month after it ends.
+
 ## Embedding on WordPress behind Cloudflare
 
 Cloudflare's Rocket Loader rewrites script tags and breaks inline JavaScript, including Pickaxe embed and SSO handshake snippets. Fix: add `data-cfasync="false"` to the script tag so Rocket Loader leaves it alone.

@@ -41,7 +41,7 @@ Consequences:
 - It only reaches Pickaxes inside the workspace its key belongs to.
 - Completions take 20 to 40+ seconds. Action-heavy runs take minutes, and there is a hard server-side ceiling (see the limits reference).
 - Transient failures show up as "Could not reach the Completion API". Retry with backoff, but if a run dies at almost exactly 300 seconds, that is the ceiling and retrying changes nothing.
-- Multi-turn works: pass your own `conversationId` string on the first call and reuse it, and the model sees the prior exchange.
+- Multi-turn works with a caveat: pass your own `conversationId` string on the first call and reuse it, and the model sees the prior exchange. That held when both turns used `message`. In a measured case on a form bot, an `inputs` first turn followed by a `message` second turn carried no history at all, and the endpoint returns no conversation id of its own to use instead. Confirm conversational behavior in the real embed before concluding that a follow-up instruction works or does not.
 - It cannot attach files. Anything involving real file upload or transcription can only be tested through the embed or Studio UI.
 - Input is capped by the bot's `chatinputlength`. Embed file uploads take a different path with different caps, so an API test and a real user upload are not the same code path.
 
@@ -52,6 +52,12 @@ Not everything fails silently. Two errors that look scary but are actually the A
 - `document_connect` on an already-attached document returns HTTP 400 "Document is already connected to this Pickaxe". Harmless, and usable as an idempotency check.
 - Connecting an action that needs a key without providing one fails with `Variable <NAME> is required` (see the actions reference).
 
+## Some advertised fields are UI-only
+
+A schema is not a contract. The server generates its tool list from parameter lists, not from the fields each handler actually writes, so a parameter appearing in the schema proves nothing about whether it saves. Only a read-back does. Observed August 2026: `deployment_update` lists `name` in its published input schema, accepts it in four different request shapes, returns HTTP 200, and bumps `updatedAt`, and the stored name never changes.
+
+When a write is confirmed dead over the API, fetch the endpoint's live schema once, which separates a mangled request from an ignored field, then stop permuting parameters and drive the Studio UI in a browser instead. More parameter shapes after that point are the same experiment repeated. Display labels are the known offenders so far (deployment and portal names, titles, descriptions), while prompt, model, and knowledge writes persist normally. After the UI edit, read the value back over the API, which is the cheap direction and confirms the UI wrote the same record the API reads.
+
 ## Big workspaces overflow tool results
 
 `document_list` and `pickaxe_documents` on a workspace with over a thousand documents return more than a megabyte. That blows past most MCP clients' tool-result limits. Write the response to a file and query it with `jq` or a script instead of reading it into context.
@@ -59,3 +65,5 @@ Not everything fails silently. Two errors that look scary but are actually the A
 ## Chat history may be legitimately empty
 
 Workspaces on the strictest privacy setting retain no retrievable transcripts. On such a workspace, `pickaxe_history` and `workspace_history` return empty for every parameter combination, by design. Empty history on a privacy-restricted workspace is an answer, not a bug. Confirm the workspace's privacy setting once, then stop querying instead of burning time on parameter permutations. History is chat transcripts only. There is no config history on the platform at all, which is what the source-of-truth reference solves.
+
+Where history does exist, its `model` field is a join, not a record. It is read from the bot's current configuration at fetch time, so changing a bot's model retroactively rewrites the reported model on every conversation that bot ever produced, while the Studio's per-message insights panel keeps the true value and does not move. Verified with a controlled test on a disposable bot: one completion under model A, config changed to model B with nothing re-run, and the API reported B while the panel still reported A. Never attribute a past run to a model using the history API, especially when reviewing an A/B test after adopting the winner, because the losing arm's record will claim the winner produced it. The general test for join-versus-stored on any API: change the upstream config, re-read a historical record, and see whether the record moves. The insights panel also carries per-message cost and latency the API omits entirely, and the history payload's token field did not reconcile with the panel's totals, so treat per-run telemetry as UI-only.

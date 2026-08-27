@@ -4,7 +4,7 @@ An unofficial agent skill for building, updating, and debugging AI tools on the 
 
 This skill teaches an AI coding agent the platform's mechanics and its traps: the field names behind the builder UI, the two-layer knowledge base, silent input truncation, the completion timeout ceiling, and the verification habits that catch all of the above.  
 
-It uses the open [Agent Skills](https://code.claude.com/docs/en/skills) format (a `SKILL.md` with reference files), which Claude Code, Codex, Cursor, and Grok Build all read.
+It uses the open [Agent Skills](https://code.claude.com/docs/en/skills) format (a `SKILL.md` with reference files), which Claude Code, Codex, Cursor, Grok Build, and Grok Bot all read.
 
 ## Install
 
@@ -31,6 +31,8 @@ git clone https://github.com/ThomasUmstattd/pickaxe-skill ~/.cursor/skills/picka
 ```bash
 git clone https://github.com/ThomasUmstattd/pickaxe-skill ~/.grok/skills/pickaxe
 ```
+
+**Grok Bot** (xAI's cloud agents): skills install through the app, not a filesystem path. Open **Settings → Plugins**, and under **Yours** point it at this repo's URL to enable the skill for a Bot. Reference it by typing `/` in the composer. Installed skills are shared across your Bots, but a Bot still needs your Pickaxe workspace API key before the skill can operate on a workspace.
 
 For a single project instead, clone into the project's skill directory: `.claude/skills/pickaxe`, `.agents/skills/pickaxe`, `.cursor/skills/pickaxe`, or `.grok/skills/pickaxe`.
 

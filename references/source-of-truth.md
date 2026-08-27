@@ -36,6 +36,8 @@ If you keep staging Pickaxes (testing reference), give them a recognizable name 
 
 The repo is a mirror, not a lock. Two people or two agent sessions can still write the same live Pickaxe at the same time, and git knows nothing about it. The protection for that lives in write scripts: re-fetch the live state, verify it matches what you based your edit on, and refuse to write on drift. Combined with the export diff, this turns silent concurrent clobbers into loud refusals.
 
+The clobber also arrives on a delay, and the delayed form is easier to miss. A prompt field is replaced whole on write, with no merge step, so a full copy of a field kept as a draft file is a loaded clobber. Re-applying it weeks later silently reverts every live edit made since the draft was last synced, and the reverting commit's diff shows nothing, because the draft file itself did not change. After any live prompt edit, re-sync every draft file that mirrors the edited field so it stays byte-identical, or mark the drifted section superseded and name the live field as authoritative. A whole-field draft is a mirror that must be maintained, not an archive that is safe to leave stale.
+
 ## Bonus: the repo becomes context
 
 An exported `role.md` per tool doubles as onboarding context for AI coding sessions. A session assigned to improve one tool reads that tool's export instead of pulling the live config, and the diff against the export shows exactly what the session changed.

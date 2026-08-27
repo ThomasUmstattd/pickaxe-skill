@@ -13,7 +13,7 @@ description: >-
 
 # Working with Pickaxe
 
-Pickaxe (pickaxe.co) is a platform for building and selling AI tools. Each tool is a "Pickaxe" with a prompt, a model, an optional form, an optional knowledge base, and optional actions. The platform exposes a hosted MCP server at `https://mcp.pickaxe.co` that also answers plain HTTP JSON-RPC, so everything the Studio UI can configure is scriptable.
+Pickaxe (pickaxe.co) is a platform for building and selling AI tools. Each tool is a "Pickaxe" with a prompt, a model, an optional form, an optional knowledge base, and optional actions. The platform exposes a hosted MCP server at `https://mcp.pickaxe.co` that also answers plain HTTP JSON-RPC, so nearly everything the Studio UI can configure is scriptable. A few display fields are UI-only and silently ignore API writes, see `references/api-mechanics.md`.
 
 This skill is a field guide built from months of production work on a large Pickaxe workspace. Every claim was observed on the live platform. Observations are dated because the platform changes fast, so re-verify anything load-bearing before you depend on it.
 
