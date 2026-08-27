@@ -20,6 +20,8 @@ Every action attachment is one of two kinds, and the `isUsingPickaxeCredits` fla
 
 This matters most for staging copies: a cloned bot starts with no working own-key actions, so action-dependent tools cannot be benchmarked end to end without a manual key attach first. A keyless run is still useful for isolating what the knowledge base contributes and for exercising the no-search failure path.
 
+A third kind exists and is easy to overlook: some built-in platform actions attach with no key at all (a built-in web search, a current-time action). When staging a search-dependent tool, check for a keyless equivalent before waiting on a key handoff. One caveat: benchmarks run on one search backend do not validate another, so either test on the backend the live tool uses or switch the live tool to the backend you tested.
+
 ## Deactivate, do not detach
 
 The Studio UI can toggle an attached action off without removing it, which preserves the stored key. Use the toggle for single-backend experiments on a tool with multiple keyed actions. Detach and reattach loses the key, and muting via the trigger prompt only steers the model rather than gating the action. The toggle appears to be UI-only.

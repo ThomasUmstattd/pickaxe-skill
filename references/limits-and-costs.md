@@ -38,9 +38,10 @@ Pickaxe plans to deprecate the temperature setting as models move to dynamic tem
 
 ## Cost architecture patterns
 
-Two decisions dominate per-run cost:
+Three decisions dominate per-run cost and runtime:
 
 - **Single-shot retrieval beats tool loops.** In a search-action loop, the full input context re-bills on every round trip, so an 8-search run pays for the prompt 8 times. Architectures that gather everything in one retrieval pass are dramatically cheaper and also fit the timeout ceiling.
+- **When multiple searches are unavoidable, batch them.** Sequential search calls stack per-call latency and per-round re-billing until they hit the 300-second ceiling. In one measured case, no provider's search action completed 8 to 12 sequential calls under the ceiling, on any of three backends. The same work restructured into at most 4 calls, each carrying one objective and several queries, finished with real margin and better result quality. Reserve one batched call for verifying load-bearing facts such as dates. The per-call cost was never the problem, the stacked round trips were.
 - **Ask for the smallest sufficient input.** A tool that only needs a book blurb should not accept a full manuscript. Moving a tool from manuscript input to blurb input cuts per-run token cost by orders of magnitude and usually improves focus.
 
 For retrieval-heavy tools, remember the token allocation waterfall (knowledge base reference): raising one budget starves another, and the failure is silent.

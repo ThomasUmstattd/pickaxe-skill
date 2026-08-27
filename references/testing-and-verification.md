@@ -65,6 +65,10 @@ For tools that analyze a document, build a quote-anchored answer key for a fixed
 
 For tools that quote source text back to the user, grade fidelity by string-matching every returned quote against the source. Models paraphrase roughly 1 in 3 "verbatim" quotes until explicitly forbidden: flipped pronouns, corrected dialect, invented lead-in clauses, spliced lines. Classify each quote (exact, trimmed, elided, altered, invented) rather than pass/fail, because legal trims like a dropped dialogue tag will otherwise mask the real error rate. The highest-value prompt addition found: require a location and speaker attribution after every quote, which makes fabrication visible and lets the user verify a line in seconds.
 
+String-matching proves the text is real, not that the claims attached to it are. A quote can be reproduced perfectly, down to a typo in the original, and still be presented as "the last line of chapter N" when it actually sits in chapter N-1. When a quote carries a structural claim (which chapter, which section, which side of a boundary), verify the claim itself, for example by checking which heading or marker immediately follows the quoted line in the source.
+
+Verify the answer key itself against the source programmatically before first use. In practice the checks catch errors in both directions: the key catches corruption in how the source was prepared, and the source catches misquotes in the key.
+
 ## Anti-hallucination design
 
 Principles distilled from documented failures, all reproducible when found:

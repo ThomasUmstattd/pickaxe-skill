@@ -60,6 +60,16 @@ bearer_token_env_var = "PICKAXE_API_KEY"
 export PICKAXE_API_KEY="studio-..."
 ```
 
+## Connect Grok Build
+
+One command:
+
+```bash
+grok mcp add --transport http pickaxe "https://mcp.pickaxe.co" --header "Authorization: Bearer YOUR_WORKSPACE_API_KEY"
+```
+
+Grok Build also merges MCP configs from `~/.claude.json`, `.cursor/mcp.json`, and a project `.mcp.json`, so a Pickaxe server already configured for Claude Code or Cursor carries over with no extra setup. `grok mcp list` shows what is configured, and `grok mcp doctor pickaxe` diagnoses a failing connection.
+
 ## Verify the connection
 
 Call `studio_whoami` with no arguments. A healthy connection returns the workspace identity. Then call `pickaxe_list` to confirm you are in the workspace you think you are in. Do this before any write, because a key for the wrong workspace fails loudly on nothing and quietly edits the wrong bots.
