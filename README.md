@@ -1,8 +1,8 @@
 # pickaxe-skill
 
-An agent skill for building, updating, and debugging AI tools on the [Pickaxe](https://pickaxe.co) platform through its MCP server and HTTP JSON-RPC API.
+An unofficial agent skill for building, updating, and debugging AI tools on the [Pickaxe](https://pickaxe.co) platform through its MCP server and HTTP JSON-RPC API.
 
-Pickaxe keeps no config history, has no dry-run mode, and has several places where a write reports success while doing nothing. This skill teaches an AI coding agent the platform's mechanics and its traps: the field names behind the builder UI, the two-layer knowledge base, silent input truncation, the completion timeout ceiling, and the verification habits that catch all of the above. It was distilled from months of production work on a workspace of 80+ live tools.
+This skill teaches an AI coding agent the platform's mechanics and its traps: the field names behind the builder UI, the two-layer knowledge base, silent input truncation, the completion timeout ceiling, and the verification habits that catch all of the above.  
 
 It uses the open [Agent Skills](https://code.claude.com/docs/en/skills) format (a `SKILL.md` with reference files), which Claude Code, Codex, and Cursor all read.
 
