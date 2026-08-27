@@ -51,7 +51,7 @@ The skill includes a walkthrough for the initial MCP connection, including where
 
 This is an independent community project, not affiliated with or endorsed by Pickaxe. Everything in it was observed on the live platform, and observations are dated (mostly August 2026) because the platform evolves. When something here contradicts current platform behavior, trust the platform and open an issue.
 
-Built by [Thomas Umstattd Jr.](https://www.authormedia.com) while building the Patron Toolbox, a suite of AI tools for authors.
+Built by [Thomas Umstattd Jr.](https://www.authormedia.com).
 
 ## License
 
