@@ -1,65 +1,85 @@
 # pickaxe-skill
 
-An unofficial agent skill for building, updating, and debugging AI tools on the [Pickaxe](https://pickaxe.co) platform through its MCP server and HTTP JSON-RPC API.
+```
+ _____ _     _                  _____ _   _ _ _ 
+|  _  |_|___| |_ ___ _ _ ___   |   __| |_|_| | |
+|   __| |  _| '_| .'|_'_| -_|  |__   | '_| | | |
+|__|  |_|___|_,_|__,|_,_|___|  |_____|_,_|_|_|_|
+                                                                          
+```
 
-This skill teaches an AI coding agent the platform's mechanics and its traps: the field names behind the builder UI, the two-layer knowledge base, silent input truncation, the completion timeout ceiling, and the verification habits that catch all of the above.  
+Teach your AI assistant to build Pickaxe tools like it has been doing it for months.
 
-It uses the open [Agent Skills](https://code.claude.com/docs/en/skills) format (a `SKILL.md` with reference files), which Claude Code, Codex, Cursor, Grok Build, and Grok Bot all read.
+## What is a skill?
+
+A skill is a folder of instructions that AI coding assistants read on their own. Claude Code, Codex, Cursor, Grok Build, and Grok Bot all use the same format. You install it once with a single command, and from then on your assistant consults it whenever your conversation touches Pickaxe. There is no code to run and nothing to configure.
+
+If you have never installed a skill before, this is a good first one. The install is one copy-paste, and the payoff shows up in your very next conversation.
+
+## Why you want it
+
+Your assistant already knows what [Pickaxe](https://pickaxe.co) is. Here is what it does not know:
+
+- **Every prompt write hits your live bot.** Pickaxe has no draft mode, so an assistant "iterating" on your prompt is editing what your users see, right now.
+- **The platform can report success on a write that did nothing.** Some fields accept your change, return success, and silently discard it. Some tools crash naive scripts on calls that actually succeeded, so an assistant can "fix" 80 things that were never broken.
+- **Input caps truncate silently.** A form field cap can feed your bot one page of a 300-page manuscript, and the bot analyzes that page in perfect confidence. Your user is told the analysis covered the book.
+- **Adding a document does not attach it.** A file can sit in your workspace, fully processed, and stay invisible to the bot it was uploaded for.
+- **Long runs die at exactly 300 seconds** with an error that reads like an outage. Retrying will never help, and an assistant that does not know the ceiling will retry all night.
+
+Without the skill, your assistant discovers each of these the hard way, on your live tools, while your customers are using them. With it, your assistant arrives already knowing the traps, verifies every change by reading it back, and tests on a staging copy before touching anything live.
+
+Everything in the skill comes from months of production work on a workspace of 80+ live Pickaxe tools. Every claim was observed on the real platform and carries the date it was observed.
 
 ## Install
 
-**Claude Code** (personal, all projects):
+Open your assistant's terminal and run the command for the assistant you use:
+
+**Claude Code**
 
 ```bash
 git clone https://github.com/ThomasUmstattd/pickaxe-skill ~/.claude/skills/pickaxe
 ```
 
-**Codex** (personal, all projects):
+**Codex**
 
 ```bash
 git clone https://github.com/ThomasUmstattd/pickaxe-skill ~/.agents/skills/pickaxe
 ```
 
-**Cursor** (personal, all projects):
+**Cursor**
 
 ```bash
 git clone https://github.com/ThomasUmstattd/pickaxe-skill ~/.cursor/skills/pickaxe
 ```
 
-**Grok Build** (personal, all projects):
+**Grok Build**
 
 ```bash
 git clone https://github.com/ThomasUmstattd/pickaxe-skill ~/.grok/skills/pickaxe
 ```
 
-**Grok Bot** (xAI's cloud agents): skills install through the app, not a filesystem path. Open **Settings → Plugins**, and under **Yours** point it at this repo's URL to enable the skill for a Bot. Reference it by typing `/` in the composer. Installed skills are shared across your Bots, but a Bot still needs your Pickaxe workspace API key before the skill can operate on a workspace.
+**Grok Bot** installs through the app instead. Open **Settings → Plugins**, and under **Yours** point it at this repo's URL. Reference it by typing `/` in the composer.
 
-For a single project instead, clone into the project's skill directory: `.claude/skills/pickaxe`, `.agents/skills/pickaxe`, `.cursor/skills/pickaxe`, or `.grok/skills/pickaxe`.
+Then start a new conversation and say: **"Connect me to my Pickaxe workspace."** The skill walks your assistant through the whole setup, including where your API key hides in Pickaxe's settings, a page most people never find on their own.
 
-## Connect to Pickaxe
+## What your assistant learns
 
-The skill includes a walkthrough for the initial MCP connection, including where the API key hides in Pickaxe Studio's settings. See [references/getting-connected.md](references/getting-connected.md), or just ask your agent to connect you to Pickaxe once the skill is installed.
+- [Getting connected](references/getting-connected.md), including first-time setup for every supported assistant
+- [How the API really behaves](references/api-mechanics.md): the fields behind the builder UI, the writes that lie, and the habit of verifying every change by reading it back
+- [Prompts and form fields](references/prompt-and-form-fields.md): the three prompt fields, the silent input caps, and a dozen measured prompt-writing lessons
+- [Knowledge bases](references/knowledge-base.md): why your bot ignores documents you added, and how retrieval starves
+- [Actions](references/actions.md): the four-action limit, API keys that cannot be copied, and the manifest edit that silently resets your triggers
+- [Limits and costs](references/limits-and-costs.md): the 300-second ceiling, credit caps, and the architecture choices that cut per-run cost
+- [Testing that catches real failures](references/testing-and-verification.md): staging copies, defining what a good answer looks like so your assistant can judge results, and anti-hallucination design
+- [Config as code](references/source-of-truth.md): back up every bot to git, because Pickaxe keeps no history and has no undo
 
-## What's inside
+The skill also ships a small [Python client](scripts/pickaxe_client.py) your assistant uses for API calls that the standard connection cannot handle.
 
-| File | Covers |
-|---|---|
-| [SKILL.md](SKILL.md) | The five rules that prevent the worst failures, and the map below |
-| [references/getting-connected.md](references/getting-connected.md) | First-time MCP setup for Claude Code, Codex, Cursor, and Grok Build |
-| [references/api-mechanics.md](references/api-mechanics.md) | Envelopes, create/update mechanics, completion testing, the HTTP fallback |
-| [references/prompt-and-form-fields.md](references/prompt-and-form-fields.md) | Role, Prompt Frame, Model Reminder, form descriptors, input caps |
-| [references/knowledge-base.md](references/knowledge-base.md) | The two-layer KB, refresh masking, RAG vs Role, retrieval starvation |
-| [references/actions.md](references/actions.md) | The four-action limit, credit-backed vs own-key, manifest traps, Wingman |
-| [references/limits-and-costs.md](references/limits-and-costs.md) | The 300s ceiling, upload whitelist, credit caps, cost architecture |
-| [references/testing-and-verification.md](references/testing-and-verification.md) | Staging discipline, realistic-length testing, A/B variance, anti-hallucination |
-| [references/source-of-truth.md](references/source-of-truth.md) | Exporting configs to git with clean diffs |
-| [scripts/pickaxe_client.py](scripts/pickaxe_client.py) | A dependency-free Python client for the HTTP JSON-RPC path |
+## Status
 
-## Status and provenance
+This is an independent community project, not affiliated with or endorsed by Pickaxe. The platform evolves, so when something here contradicts current platform behavior, trust the platform and [open an issue](https://github.com/ThomasUmstattd/pickaxe-skill/issues). Releases are tagged, so you can pin a version or just `git pull` for the latest.
 
-This is an independent community project, not affiliated with or endorsed by Pickaxe. Everything in it was observed on the live platform, and observations are dated (mostly August 2026) because the platform evolves. When something here contradicts current platform behavior, trust the platform and open an issue.
-
-Built by [Thomas Umstattd Jr.](https://www.authormedia.com).
+Built by [Thomas Umstattd Jr.](https://www.authormedia.com) while building the Patron Toolbox, a suite of AI tools for authors.
 
 ## License
 
