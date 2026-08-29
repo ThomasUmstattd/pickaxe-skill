@@ -14,6 +14,8 @@ The key is a workspace API key, and the page it lives on is easy to miss.
 
 Keys start with `studio-`. Each key is scoped to one workspace, so managing two workspaces means two keys and two MCP server entries.
 
+Mind the hostnames. The builder and its settings live at `pickaxe.co/user/dashboard`. The similarly named `studio.pickaxe.co` serves the public guest portal, not the builder, so directions pointing there dead-end (observed August 2026). And the API endpoint is exactly `https://mcp.pickaxe.co` with no path: appending `/mcp` fails.
+
 Official docs: https://pickaxe.co/learn/mcp-server
 
 ## Connect Claude Code

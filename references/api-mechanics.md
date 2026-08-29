@@ -7,7 +7,7 @@ Everything here was observed on the live platform in August 2026. The server evo
 `https://mcp.pickaxe.co` serves MCP clients and also answers plain HTTP JSON-RPC POSTs (`method: "tools/call"`). You need both:
 
 - **MCP through a client** is convenient for reads and small writes.
-- **Direct HTTP JSON-RPC** is required for large payloads. MCP client layers can reject big tool arguments with validation errors before the request ever reaches Pickaxe. An 18KB role field is enough to trigger this. Some endpoints have also returned 422 through an MCP client layer while working over direct HTTP. When a write fails at the client layer, switch transports before debugging anything else.
+- **Direct HTTP JSON-RPC** is required for large payloads. MCP client layers can reject big tool arguments with validation errors before the request ever reaches Pickaxe. An 18KB role field is enough to trigger this. Some endpoints have also returned 422 through an MCP client layer while working over direct HTTP. When a write fails at the client layer, switch transports before debugging anything else. And never retry a validation or serialization error unchanged: it is deterministic, and identical retries have burned three round trips at a time. Fix the arguments or switch transports.
 
 `scripts/pickaxe_client.py` implements the HTTP path. Auth is a `Authorization: Bearer studio-...` header on every request.
 
@@ -30,7 +30,8 @@ Consequences:
 - Field name decoder: the system prompt is `role`. The builder UI's "Model Reminder" is `responseprefix`. The form's first-turn prompt is `promptframe` plus its HTML twin `rawpromptframe` (see the prompt fields reference).
 - New Pickaxes default to `chatinputlength: 250` tokens and `maxlength: 2000`. The tiny input default silently truncates anything long you send through the completion API, so raise it before testing with real inputs.
 - There is no pickaxe delete tool in the API (as of August 2026). Bots created programmatically must be deleted in the Studio UI.
-- `user_update` on an email with no existing user returns 404 and does not create the user. Updates go inside `data: {...}`, and top-level fields fail with "data is required". Some fields are accepted and silently ignored, which is one more reason to read the record back.
+- `user_update` on an email with no existing user returns 404 and does not create the user. Updates go inside `data: {...}`, and top-level fields fail with "data is required". Some fields are accepted and silently ignored, which is one more reason to read the record back. Two discarded fields worth naming: `limit` and `limitInterval` are accepted, reported written, and stay null on read-back, so per-user credit adjustments are a Studio UI operation.
+- `access_group_assign` does not put users in groups. It attaches access groups to deployments and portals. The user-side path is `user_update` with an `accessGroupId`, keyed by email, which inherits every `user_update` quirk above.
 
 ## Running completions
 
@@ -60,7 +61,13 @@ When a write is confirmed dead over the API, fetch the endpoint's live schema on
 
 ## Big workspaces overflow tool results
 
-`document_list` and `pickaxe_documents` on a workspace with over a thousand documents return more than a megabyte. That blows past most MCP clients' tool-result limits. Write the response to a file and query it with `jq` or a script instead of reading it into context.
+`document_list` and `pickaxe_documents` on a workspace with over a thousand documents return more than a megabyte, and `deployment_list` on a workspace with many deployments returns hundreds of kilobytes. That blows past most MCP clients' tool-result limits. Write the response to a file and query it with `jq` or a script instead of reading it into context.
+
+## A second API: the public completions endpoint
+
+Separate from the MCP server, Pickaxe documents a public completions endpoint at `api.pickaxe.co/v1/completions` (docs at `pickaxe.co/v1/documentation/completions`). It authenticates with `Authorization: Bearer <deployment API key>`, taken from a deployment's API preview section in the Studio UI. The workspace MCP key returns 401 and a direct-link deployment id returns 403, and no API path mints the key, so obtaining it is a UI step.
+
+The docs list three capabilities the MCP completion tool lacks: `stream: true` for Server-Sent Events (the natural experiment against the 300-second ceiling, since a streaming connection is never idle), `inputs` for real form-field injection, and `conversationId` for multi-turn. A companion `/v1/triggers` endpoint delivers a server-to-server message the model sees as a user turn without it entering history. The auth failures were measured, and the capabilities are documented rather than verified (August 2026).
 
 ## Chat history may be legitimately empty
 

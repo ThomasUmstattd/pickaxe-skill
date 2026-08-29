@@ -11,6 +11,8 @@ A document can be fully embedded, with `embeddingFillStatus: complete` and a rea
 
 The failure this produces: a bulk import creates dozens of documents, everything reports success, and the bot's retrievable count does not move. Verify imports with `pickaxe_documents`, not with the import's return values.
 
+A third population is invisible from both layers: documents uploaded by end users through a tool's form do not appear in `document_list` for the workspace owner, so a failed scrape or a suspect user upload cannot be inspected from the workspace side (observed August 2026).
+
 Two API behaviors around the connect call:
 
 - `document_connect` returns `{"success": true}` with no `data` key. A strict `sc["data"]` helper crashes on this success. Parse tolerantly.
@@ -34,6 +36,8 @@ A related diagnostic: if a tool is supposed to analyze one uploaded document in 
 ## Token allocation starves retrieval
 
 The context budget fills in order: memory first, spillover to end-user documents, and the knowledge base gets the remainder. A heavy Role prompt or a large upload allocation can leave the knowledge base with nothing, and the bot answers as if the KB does not exist while every run reports success.
+
+A second knob starves uploads rather than the knowledge base, and this one is visible over the API. The bot's reserved-tokens value is subtracted before the waterfall runs, and when it exceeds the model's context window the platform neither clamps nor warns. The computed budget object comes back null and every allocation goes to zero. A full-length upload still uploads and still runs, but reaches the model as a handful of semantically retrieved chunks, and the tell is disjoint, out-of-order fragments rather than a truncated prefix. Read the bot's computed budget object over the API: null means no upload path on that bot can work. Compare the reserve against the model's context window, and against a known-good bot in the same workspace, since the correct value varies. Staging and scratch bots are the worst offenders, because an absurd reserve inherited from a previous occupant survives reconfiguration untouched.
 
 Diagnosis: Pickaxe's Message Insights panel (Studio UI only, not exposed over the API) shows exactly which KB chunks were retrieved and the input token counts. Zero KB chunks with system-prompt-only token counts confirms retrieval starvation. Also know that retrieval behavior can change platform-side with no config change on your end, so a tool that stops citing its knowledge base is not necessarily a prompt regression.
 

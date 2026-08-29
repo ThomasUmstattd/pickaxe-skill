@@ -20,6 +20,8 @@ Three different paths carry user input, each with its own cap:
 
 The embed's file picker enforces a format whitelist in the client, and the error ("You can only upload PDF, TXT, DOC...") comes from the platform, not from anything configurable per tool. The whitelist can lag the backend: `.m4a` audio was blocked by the picker while the transcription backend handled the format fine when it got through (observed August 2026, reported to Pickaxe). If a format matters to your users, test it through the real embed, and file a ticket when the picker is the only thing blocking it.
 
+The rejection message and the file input's `accept` attribute are two independent lists, and they drift. The input has accepted audio and video MIME types while the error text named neither, so a user can upload an audio file successfully and later be told audio is unsupported. Never diagnose an upload rejection from the error text. Read the `accept` attribute on the rendered embed's file input, which is what the picker enforces, and report a message mismatch and a missing format as separate defects.
+
 ## Credit caps are per-deployment
 
 Usage limits on public access groups enforce hard, but **per deployment (per tool), not aggregated per user across a workspace**. A user who exhausts the cap on one tool keeps full allowance on every other tool. The group settings UI states this, in fine print that is easy to read past.
@@ -31,6 +33,12 @@ Mechanics worth knowing (observed August 2026):
 - Members-group wallets behave differently: a credits-per-month wallet on a members group aggregates across the workspace into the top-level counter.
 - `run_pickaxe_completion` does not debit member wallets. API runs bill the workspace owner, so API testing does not distort user credit counters, and also does not exercise the enforcement path.
 - Auditing usage: `user_get` exposes the per-deployment `uses[]` array. A user's real total is the sum across deployments, and a per-deployment counter pinned at exactly the cap value means enforcement fired.
+
+## SSO identity and monetization paths
+
+Embed SSO hands the embed a signed token carrying the external site's user identity, and the platform mints one user record per distinct email in that token. When the upstream email changes for a user who already paid, the next login creates a second empty record, and the purchased credits stay stranded on the first with no warning on either side. Before wiring SSO to any paid tier, confirm what the token's email derives from and whether it can change for an existing user, and resist fixing a stale email by syncing it upstream, since changing the email is exactly what splits the identity. After any SSO change, list the workspace's users and look for a new record that appeared around the change, because the failure presents as absence of activity on the expected record.
+
+Monetization paths differ by access group type. A public-type group has no buy-more-credits control (`isBuyMoreUses` stays false), so the only path out of a free public tier is `isUpgradeToAnotherGroup` pointed at a members group. That upgrade crosses into platform-native sign-in, which an SSO user has no credentials for, so the purchase journey can dead-end at a login wall for an account the user never knowingly created. Test the whole journey as an SSO user before treating a wired-up upgrade path as working (observed August 2026).
 
 ## Temperature is on its way out
 
@@ -45,6 +53,10 @@ Three decisions dominate per-run cost and runtime:
 - **Ask for the smallest sufficient input.** A tool that only needs a book blurb should not accept a full manuscript. Moving a tool from manuscript input to blurb input cuts per-run token cost by orders of magnitude and usually improves focus.
 
 For retrieval-heavy tools, remember the token allocation waterfall (knowledge base reference): raising one budget starves another, and the failure is silent.
+
+## Changing the model does not rescale token budgets
+
+`reservedtokens`, `endusertokens`, `membuffer`, and the `ragbudget` map are sized to whichever model was set when they were written, and a model change leaves all of them untouched with no warning. Moving a tool from a 2,000,000-token-window model to a 500,000-token one left every budget above the new window, and the update reported success. Rescale by the window ratio after a model change, but only the window-derived fields: budgets that appear as identical round numbers across tools on different models are settings, and the output-length cap is worth leaving alone when it already fits, since shrinking it can truncate long reports. One bounding caveat: tools have run with over-window budgets without visible damage, so treat this as post-change hygiene rather than the explanation for a bug you are already chasing.
 
 ## Per-run cost cannot be measured from the API
 
