@@ -20,6 +20,7 @@ Usage from Python:
     from pickaxe_client import call, run_completion
     tools = call("pickaxe_list", {})
     reply = run_completion("ABC123XYZ0", "Hello")
+    reply = run_completion("ABC123XYZ0", inputs={"userinput:<field-id>": "..."})
 
 Remember: never trust a mutation's return value. Read the state back.
 """
@@ -106,19 +107,35 @@ def call(tool, args=None, server=DEFAULT_SERVER, timeout=120, token=None):
     return sc.get("data", sc)
 
 
-def run_completion(pickaxe_id, message, server=DEFAULT_SERVER,
-                   conversation_id=None, timeout=330, retries=2):
+def run_completion(pickaxe_id, message=None, server=DEFAULT_SERVER,
+                   conversation_id=None, timeout=330, retries=2,
+                   inputs=None):
     """Run a live completion and return the result text.
 
-    The response arrives as a Python-repr dict inside content text, so it
-    is parsed with ast.literal_eval, not json. Transient "Could not reach
+    Pass either `message` (a chat string) or `inputs` (a dict keyed by the
+    form's `userinput:*` field ids from the prompt frame). They are not
+    interchangeable: `message` never fires the prompt frame, so a form
+    tool driven that way runs on the Role and Model Reminder alone, while
+    `inputs` drives the real form path. See
+    references/testing-and-verification.md before choosing.
+
+    The response has arrived both as a Python-repr dict inside content
+    text (parsed with ast.literal_eval, not json) and as a structured dict,
+    so both shapes are unwrapped to the result text. Transient "Could not reach
     the Completion API" errors are retried with backoff, but a run that
     dies at ~300 seconds hit the server-side ceiling and a retry will not
     help unless the run gets faster (see references/limits-and-costs.md).
-    Completions are capped by the bot's chatinputlength, and every prompt
-    you want tested must already be written to the live bot.
+    Message runs are capped by the bot's chatinputlength, input runs by
+    each field's answerlength, and every prompt you want tested must
+    already be written to the live bot.
     """
-    args = {"pickaxeId": pickaxe_id, "message": message}
+    if (message is None) == (inputs is None):
+        raise ValueError("pass exactly one of message or inputs")
+    args = {"pickaxeId": pickaxe_id}
+    if inputs is not None:
+        args["inputs"] = inputs
+    else:
+        args["message"] = message
     if conversation_id:
         args["conversationId"] = conversation_id
 
@@ -133,6 +150,9 @@ def run_completion(pickaxe_id, message, server=DEFAULT_SERVER,
                 time.sleep(10 * (attempt + 1))
                 continue
             raise
+        # The completion has arrived two ways within one month: as a
+        # Python-repr dict inside content text (August 2026) and as a real
+        # dict with success and result keys (September 2026). Handle both.
         if isinstance(data, str):
             try:
                 parsed = ast.literal_eval(data)
@@ -140,6 +160,8 @@ def run_completion(pickaxe_id, message, server=DEFAULT_SERVER,
                     return parsed.get("result", parsed)
             except (ValueError, SyntaxError):
                 pass
+        elif isinstance(data, dict) and "result" in data:
+            return data["result"]
         return data
     raise last
 

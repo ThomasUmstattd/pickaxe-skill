@@ -30,6 +30,16 @@ The Studio UI can toggle an attached action off without removing it, which prese
 
 Pickaxe ships an action builder called Wingman (https://pickaxe.co/learn/wingman) that creates an action from a single prompt. For a new custom action, write a complete Wingman prompt describing the action's name, endpoint, parameters, auth variable, and response handling, then paste it into Wingman and add the API key in the Studio UI. This beats hand-building manifests over the API, and it keeps provider keys out of chat logs and terminals.
 
+## Image actions return public CDN files
+
+Built-in image generation actions do not return a provider blob that expires or needs auth. They return a Pickaxe-hosted file at `cdn.mail.studio/action_generated_files/` (PNG in the measured case), and HEAD and GET on those URLs minutes after generation were public HTTP 200 with no cookies and no redirect into a login wall (August 2026, longer TTL unmeasured). Inspect the actual URL the action returned before diagnosing provider-side expiry, signed-URL lifetime, or a 403. An orchestrator model that "generated an image" only called the action, and the pixels live on Pickaxe's CDN. Two follow-ons: a user's "access denied" on a clicked image is usually a portal lockout page rather than the file (testing reference), and an orchestrator that returns a working file wrapped in a markdown hyperlink instead of an inline image needs the hyperlink banned in the Role and the Reminder (prompt fields reference).
+
+## `action_runs` tells you whether an action fired, not how long it took
+
+`action_runs` takes `actionId` (required) and an optional `limit`. Each run carries `status`, `parsedArgs`, `sessionId`, and a `content` field holding the action's return value as a Python-repr dict string (single quotes, not JSON), which `ast.literal_eval` parses when you need structured fields. It is the fastest way to confirm that an action ran and what it returned on a given session.
+
+There is no duration, latency, or start-and-end timestamp pair on a run. `createdAt` and `updatedAt` are identical on every observed row, so they mark when the record was written, not how long the action took. Per-message timing lives in the Studio's Message Insights panel and is not reachable over the API, so wall-clock on `run_pickaxe_completion` minus an approximate action timestamp is the only way to split fetch time from model time when debugging an action-heavy tool against the completion ceiling.
+
 ## Budget the latency
 
 Actions bill and stall in ways that break tools (see the limits reference for the hard timeout):

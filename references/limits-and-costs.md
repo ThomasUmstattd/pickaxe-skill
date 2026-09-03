@@ -1,20 +1,35 @@
 # Platform limits and cost architecture
 
+In this file:
+
+- The 300-second completion ceiling
+- Input paths and their caps
+- Upload format whitelist is client-side
+- Credit caps are per-deployment
+- SSO identity and monetization paths
+- Admin group toggles are mutually exclusive and destroy purchased credits
+- Temperature is on its way out
+- Cost architecture patterns
+- Changing the model does not rescale token budgets
+- Per-run cost cannot be measured from the API
+- Embedding on WordPress behind Cloudflare
+- Big-workspace responses overflow clients
+
 ## The 300-second completion ceiling
 
 Completions die server-side at 300 seconds (observed August 2026, reproduced across models and search backends with a client timeout far higher). The error is an empty-detail "Could not reach the Completion API:", which looks like an outage rather than a timeout and has cost hours of misdiagnosis.
 
-- **Check the wall clock first.** A failure at almost exactly 300 seconds is the ceiling. Retrying changes nothing unless the run gets faster.
+- **Check the wall clock first.** A failure at almost exactly 300 seconds is the ceiling. Retrying changes nothing unless the run gets faster. And a run that dies at the ceiling may already have spent an attempt on the workspace fallback, since timeouts are a fallback trigger (testing reference).
 - **Design to the ceiling.** Treat 300 seconds as the budget even if the platform someday raises it, because users will not wait longer anyway. Cap search calls and output length so healthy runs finish with margin. Measure per-call action latency before committing to a multi-call architecture.
-- Whether the ceiling applies to end-user embed chat, where streaming may keep the connection alive, was unconfirmed at the time of observation.
+- The ceiling was measured on the workspace MCP completion tool. The same slow tool completed six times over the public completions endpoint with `stream: true`, at 187 to 252 seconds (api-mechanics reference), so streaming at least removes the client-side idle. Whether a streamed run survives past 300 seconds, and whether the ceiling applies to end-user embed chat, are still unobserved.
 
 ## Input paths and their caps
 
 Three different paths carry user input, each with its own cap:
 
-- **API completion messages** are capped by the bot's `chatinputlength` (default 250 tokens on new bots).
-- **Form text fields and upload fields** are capped by their descriptor's `answerlength` (see the prompt fields reference for the silent-truncation trap).
-- **Embed file uploads** take a different path than API messages, so an API test does not prove the upload path works, and vice versa.
+- **API completion messages** are capped by the bot's `chatinputlength` (default 250 tokens on new bots). It is a token cap, it binds only the `message` path, and it fails loudly on the public completions endpoint with "Message is too long".
+- **Form text fields and upload fields** are capped by their descriptor's `answerlength` (see the prompt fields reference for the silent-truncation trap). That cap also governs text passed into an upload field over the `inputs` path.
+- **Embed file uploads** take a different path than API messages, so an API test does not prove the upload path works, and vice versa. The end-user upload widget also has to be enabled at all: `documentuploadtype` at the owner-only value disables it with "File uploads are disabled for this Pickaxe" (testing reference).
 
 ## Upload format whitelist is client-side
 
@@ -39,6 +54,14 @@ Mechanics worth knowing (observed August 2026):
 Embed SSO hands the embed a signed token carrying the external site's user identity, and the platform mints one user record per distinct email in that token. When the upstream email changes for a user who already paid, the next login creates a second empty record, and the purchased credits stay stranded on the first with no warning on either side. Before wiring SSO to any paid tier, confirm what the token's email derives from and whether it can change for an existing user, and resist fixing a stale email by syncing it upstream, since changing the email is exactly what splits the identity. After any SSO change, list the workspace's users and look for a new record that appeared around the change, because the failure presents as absence of activity on the expected record.
 
 Monetization paths differ by access group type. A public-type group has no buy-more-credits control (`isBuyMoreUses` stays false), so the only path out of a free public tier is `isUpgradeToAnotherGroup` pointed at a members group. That upgrade crosses into platform-native sign-in, which an SSO user has no credentials for, so the purchase journey can dead-end at a login wall for an account the user never knowingly created. Test the whole journey as an SSO user before treating a wired-up upgrade path as working (observed August 2026).
+
+## Admin group toggles are mutually exclusive and destroy purchased credits
+
+Access group assignment is single-group-per-user. Enabling a new group for a user in the Studio's admin drawer silently disables the current one, with no warning and no confirmation step. The vendor confirmed in August 2026 that this is intentional and filed a UI warning as an internal ticket with no date.
+
+Toggling a credit-pack group off destroys the user's purchased `extraUses`, resetting them to zero. This too is by design: the admin toggle is a manual provisioning tool for off-platform payments, so granting mints credits without a payment processor and removing resets to zero. Combined, one accidental click in the admin drawer can wipe a paying customer's purchased credits with no undo, and the vendor acknowledges the UI does not communicate the consequence.
+
+Two habits. Avoid manual group changes in the admin drawer for any user who has purchased credits. And assign groups programmatically through `user_update` with `accessGroupId` (api-mechanics reference) rather than the toggle, for example during an SSO sync, since the API path does not carry the mint-and-destroy behavior.
 
 ## Temperature is on its way out
 

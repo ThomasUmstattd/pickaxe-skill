@@ -66,11 +66,12 @@ Then start a new conversation and say: **"Connect me to my Pickaxe workspace."**
 
 - [Getting connected](references/getting-connected.md), including first-time setup for every supported assistant
 - [How the API really behaves](references/api-mechanics.md): the fields behind the builder UI, the writes that lie, and the habit of verifying every change by reading it back
-- [Prompts and form fields](references/prompt-and-form-fields.md): the three prompt fields, the silent input caps, and a dozen measured prompt-writing lessons
+- [Prompts and form fields](references/prompt-and-form-fields.md): the three prompt fields, the silent input caps that make bots invent content, and more than a dozen measured prompt-writing lessons
 - [Knowledge bases](references/knowledge-base.md): why your bot ignores documents you added, and how retrieval starves
 - [Actions](references/actions.md): the four-action limit, API keys that cannot be copied, and the manifest edit that silently resets your triggers
 - [Limits and costs](references/limits-and-costs.md): the 300-second ceiling, credit caps, and the architecture choices that cut per-run cost
-- [Testing that catches real failures](references/testing-and-verification.md): staging copies, defining what a good answer looks like so your assistant can judge results, and anti-hallucination design
+- [Testing that catches real failures](references/testing-and-verification.md): staging copies, verifying every write, and the platform signals that send a diagnosis the wrong way
+- [Grading and fixtures](references/grading-and-fixtures.md): defining what a good answer looks like so your assistant can judge results, building test inputs that can fail, and anti-hallucination design
 - [Config as code](references/source-of-truth.md): back up every bot to git, because Pickaxe keeps no history and has no undo
 
 The skill also ships a small [Python client](scripts/pickaxe_client.py) your assistant uses for API calls that the standard connection cannot handle.

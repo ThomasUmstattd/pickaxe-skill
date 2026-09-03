@@ -1,13 +1,25 @@
 # API mechanics
 
-Everything here was observed on the live platform in August 2026. The server evolves, so treat specific shapes as dated observations and the verification habits as the durable part.
+Everything here was observed on the live platform in August and September 2026. The server evolves, so treat specific shapes as dated observations and the verification habits as the durable part.
+
+In this file:
+
+- Two transports, one endpoint
+- Response envelopes are not uniform, and they drift
+- Creating and updating Pickaxes
+- Running completions
+- Honest errors worth knowing
+- Some advertised fields are UI-only, field by field
+- Big workspaces overflow tool results
+- A second API: the public completions endpoint
+- Chat history may be legitimately empty, or legitimately short
 
 ## Two transports, one endpoint
 
 `https://mcp.pickaxe.co` serves MCP clients and also answers plain HTTP JSON-RPC POSTs (`method: "tools/call"`). You need both:
 
 - **MCP through a client** is convenient for reads and small writes.
-- **Direct HTTP JSON-RPC** is required for large payloads. MCP client layers can reject big tool arguments with validation errors before the request ever reaches Pickaxe. An 18KB role field is enough to trigger this. Some endpoints have also returned 422 through an MCP client layer while working over direct HTTP. When a write fails at the client layer, switch transports before debugging anything else. And never retry a validation or serialization error unchanged: it is deterministic, and identical retries have burned three round trips at a time. Fix the arguments or switch transports.
+- **Direct HTTP JSON-RPC** is required for large payloads. MCP client layers can reject big tool arguments with validation errors before the request ever reaches Pickaxe. An 18KB role field is enough to trigger this. Some endpoints have also failed through an MCP client layer while working over direct HTTP: 422 "body Field required" on several tools, and `pickaxe_create` failing three times with "could not be parsed as JSON" because the client sent string parameters unquoted. When a write fails at the client layer, switch transports before debugging anything else. And never retry a validation or serialization error unchanged: it is deterministic, and identical retries have burned three round trips at a time. Fix the arguments or switch transports.
 
 `scripts/pickaxe_client.py` implements the HTTP path. Auth is a `Authorization: Bearer studio-...` header on every request.
 
@@ -28,8 +40,8 @@ Consequences:
 - `pickaxe_create` ignores top-level `prompt`, `model`, and `temperature` parameters. Create, then set everything through `pickaxe_update` with a `data` object: `data: {role, responseprefix, model, temperature, name, chatinputlength, ...}`.
 - `pickaxe_update` is a partial update. Only `pickaxe_id` is required, and unmentioned fields are left alone.
 - Field name decoder: the system prompt is `role`. The builder UI's "Model Reminder" is `responseprefix`. The form's first-turn prompt is `promptframe` plus its HTML twin `rawpromptframe` (see the prompt fields reference).
-- New Pickaxes default to `chatinputlength: 250` tokens and `maxlength: 2000`. The tiny input default silently truncates anything long you send through the completion API, so raise it before testing with real inputs.
-- There is no pickaxe delete tool in the API (as of August 2026). Bots created programmatically must be deleted in the Studio UI.
+- New Pickaxes default to `chatinputlength: 250` tokens and `maxlength: 2000`, and the rest of the create payload is worse than a tiny chat cap. A new bot also arrives with `reservedtokens` at 10,000,000 (larger than any model's context window, which nulls the computed budget object and starves every upload path, see the knowledge-base reference), `ragbudget` null, `endusertokens` 750, `documentuploadtype` at the owner-only value, and privacy public. A completion run before those are overwritten is a test of a public bot whose upload path is dead and whose paste cap is 250 tokens, not a test of the tool you meant to copy. Create, then immediately write the source's role, reminder, both prompt frames, model, reasoning effort, temperature, type flags, privacy, chat input cap, reserved tokens, budget object, and upload mode, and read them all back before the first completion. Knowledge documents do not copy on create. Attach them one by one with `document_connect`.
+- There is no pickaxe delete tool in the API (as of September 2026). Bots created programmatically must be deleted in the Studio UI, which is one reason to reuse named staging bots rather than creating scratch copies.
 - `user_update` on an email with no existing user returns 404 and does not create the user. Updates go inside `data: {...}`, and top-level fields fail with "data is required". Some fields are accepted and silently ignored, which is one more reason to read the record back. Two discarded fields worth naming: `limit` and `limitInterval` are accepted, reported written, and stay null on read-back, so per-user credit adjustments are a Studio UI operation.
 - `access_group_assign` does not put users in groups. It attaches access groups to deployments and portals. The user-side path is `user_update` with an `accessGroupId`, keyed by email, which inherits every `user_update` quirk above.
 
@@ -38,13 +50,13 @@ Consequences:
 `run_pickaxe_completion` executes a live Pickaxe and is the workhorse for automated testing. Its sharp edges:
 
 - **`pickaxeConfig` does not override the prompt.** There is no dry-run or shadow config. Testing a prompt variant means writing it to a real bot first, which is why staging copies exist (see the testing reference).
-- The response arrives as a **Python-repr dict in the content text**, single quotes and all: `{'success': True, 'result': '<markdown>'}`. Parse with `ast.literal_eval`, not `json.loads`.
+- The response shape is not stable. In August 2026 it arrived as a **Python-repr dict in the content text**, single quotes and all: `{'success': True, 'result': '<markdown>'}`, which needs `ast.literal_eval` rather than `json.loads`. In September 2026 the same call over the same transport returned a structured dict with `success` and `result` keys, and a client that only handled the string shape passed the whole envelope back to its caller. Unwrap both shapes, which `scripts/pickaxe_client.py` now does.
 - It only reaches Pickaxes inside the workspace its key belongs to.
 - Completions take 20 to 40+ seconds. Action-heavy runs take minutes, and there is a hard server-side ceiling (see the limits reference).
 - Transient failures show up as "Could not reach the Completion API". Retry with backoff, but if a run dies at almost exactly 300 seconds, that is the ceiling and retrying changes nothing.
 - Multi-turn works with a caveat: pass your own `conversationId` string on the first call and reuse it, and the model sees the prior exchange. That held when both turns used `message`. In a measured case on a form bot, an `inputs` first turn followed by a `message` second turn carried no history at all, and the endpoint returns no conversation id of its own to use instead. Confirm conversational behavior in the real embed before concluding that a follow-up instruction works or does not.
 - It cannot attach files. Anything involving real file upload or transcription can only be tested through the embed or Studio UI.
-- Input is capped by the bot's `chatinputlength`. Embed file uploads take a different path with different caps, so an API test and a real user upload are not the same code path.
+- Input is capped by the bot's `chatinputlength` on the `message` path. Embed file uploads take a different path with different caps, so an API test and a real user upload are not the same code path.
 
 ## Honest errors worth knowing
 
@@ -53,11 +65,13 @@ Not everything fails silently. Two errors that look scary but are actually the A
 - `document_connect` on an already-attached document returns HTTP 400 "Document is already connected to this Pickaxe". Harmless, and usable as an idempotency check.
 - Connecting an action that needs a key without providing one fails with `Variable <NAME> is required` (see the actions reference).
 
-## Some advertised fields are UI-only
+## Some advertised fields are UI-only, field by field
 
 A schema is not a contract. The server generates its tool list from parameter lists, not from the fields each handler actually writes, so a parameter appearing in the schema proves nothing about whether it saves. Only a read-back does. Observed August 2026: `deployment_update` lists `name` in its published input schema, accepts it in four different request shapes, returns HTTP 200, and bumps `updatedAt`, and the stored name never changes.
 
-When a write is confirmed dead over the API, fetch the endpoint's live schema once, which separates a mangled request from an ignored field, then stop permuting parameters and drive the Studio UI in a browser instead. More parameter shapes after that point are the same experiment repeated. Display labels are the known offenders so far (deployment and portal names, titles, descriptions), while prompt, model, and knowledge writes persist normally. After the UI edit, read the value back over the API, which is the cheap direction and confirms the UI wrote the same record the API reads.
+The boundary does not fall between display fields and functional fields. It falls between individual fields on the same endpoint, and both sides can sit in one request. One `pickaxe_update` call set three display fields at once: the bot's short `description` and its `formdescription` both persisted and rendered on the live embed, while `submittext` (the form's submit button label) on the same call was accepted, reported successful, and discarded. Known dead fields so far are `submittext` on `pickaxe_update`, `name` on `deployment_update`, and portal names and titles. Descriptions save. A caller who reads "display labels are UI-only" as a class would skip a write that works, and a caller who sees the description land would assume the button label landed too, so read back every field you set, individually. The mutation's own response envelope is the first signal: it came back carrying the new values for the two fields that saved and the old value for the one that did not, before any read-back.
+
+When a write is confirmed dead over the API, fetch the endpoint's live schema once, which separates a mangled request from an ignored field, then stop permuting parameters and drive the Studio UI in a browser instead. More parameter shapes after that point are the same experiment repeated. After the UI edit, read the value back over the API, which is the cheap direction and confirms the UI wrote the same record the API reads.
 
 ## Big workspaces overflow tool results
 
@@ -65,13 +79,17 @@ When a write is confirmed dead over the API, fetch the endpoint's live schema on
 
 ## A second API: the public completions endpoint
 
-Separate from the MCP server, Pickaxe documents a public completions endpoint at `api.pickaxe.co/v1/completions` (docs at `pickaxe.co/v1/documentation/completions`). It authenticates with `Authorization: Bearer <deployment API key>`, taken from a deployment's API preview section in the Studio UI. The workspace MCP key returns 401 and a direct-link deployment id returns 403, and no API path mints the key, so obtaining it is a UI step.
+Separate from the workspace MCP server, Pickaxe documents a public completions endpoint at `api.pickaxe.co/v1/completions` (docs at `pickaxe.co/v1/documentation/completions`). It authenticates with `Authorization: Bearer <deployment API key>`, taken from an API deployment's Controls tab in the Studio UI. The workspace MCP key returns 401 and a direct-link deployment id returns 403. The API deployment type is real but UI-only: `deployment_create` rejects `type: "api"` against an allowlist, so creating one is a browser step, and its key is the deployment id itself. Every caller of a deployment shares that one key, so per-caller revocation has to live in your own gateway.
 
-The docs list three capabilities the MCP completion tool lacks: `stream: true` for Server-Sent Events (the natural experiment against the 300-second ceiling, since a streaming connection is never idle), `inputs` for real form-field injection, and `conversationId` for multi-turn. A companion `/v1/triggers` endpoint delivers a server-to-server message the model sees as a user turn without it entering history. The auth failures were measured, and the capabilities are documented rather than verified (August 2026).
+Exercised in September 2026, not only documented: `stream: true` returns Server-Sent Events (`event: delta` lines carrying `text-delta` fragments after a `start` event), `inputs` injects real form fields keyed by the bare field ids the Controls tab lists, `imageUrls` (an https URL ending in an image extension) reaches the model as an image and is the API-side equivalent of a form's image upload field, and `conversationId` carries multi-turn. Six streamed runs of a slow search-backed tool finished between 187 and 252 seconds, all under the 300-second ceiling that had killed the same tool's runs over the workspace MCP tool, so streaming did not need to survive the kill to be worth having. Whether it survives a run past 300 seconds is still unobserved.
 
-## Chat history may be legitimately empty
+Two input facts from the same tests. A document upload field accepts text over this path as `inputs["userinput:documentupload"]`, and the field's own `answerlength` governs it rather than `chatinputlength`: a 300,000-character manuscript ran to completion. And `chatinputlength` is a token cap that binds only the `message` path, failing with HTTP 500 "Message is too long (N tokens). Max length is M tokens." A companion `/v1/triggers` endpoint delivers a server-to-server message the model sees as a user turn without it entering history, and each API deployment also exposes its own MCP server at the same `mcp.pickaxe.co` host, authenticated with the deployment key, offering exactly one tool whose schema is generated from the live form with `userinput:`-prefixed keys.
+
+## Chat history may be legitimately empty, or legitimately short
 
 Workspaces on the strictest privacy setting retain no retrievable transcripts. On such a workspace, `pickaxe_history` and `workspace_history` return empty for every parameter combination, by design. Empty history on a privacy-restricted workspace is an answer, not a bug. Confirm the workspace's privacy setting once, then stop querying instead of burning time on parameter permutations. History is chat transcripts only. There is no config history on the platform at all, which is what the source-of-truth reference solves.
+
+Empty is not the only way history lies. On a workspace that retains transcripts, `pickaxe_history` can return a short recent slice while the deployment's lifetime use count is far larger: ten conversations across ten days against 247 embed uses, with pagination past the first page adding nothing. A non-empty page is not proof you have the complaint you came for. Compare the conversation count to the deployment's `totalUses` before treating the returned set as the bot's history, and if uses dwarf conversations, say so in the writeup rather than dating a user report against a window you cannot see.
 
 Where history exists, check whether a field is stored or joined before trusting it retrospectively. An API field naming a per-run fact may be joined against current configuration at read time, and a joined field silently rewrites reported history whenever the configuration changes. The test is cheap and generalizes to any API: change the upstream config, re-read a historical record without re-running anything, and see whether the record moves. Run it in both directions to rule out coincidence.
 
