@@ -48,6 +48,7 @@ Mechanics worth knowing (observed August 2026):
 - Members-group wallets behave differently: a credits-per-month wallet on a members group aggregates across the workspace into the top-level counter.
 - `run_pickaxe_completion` does not debit member wallets. API runs bill the workspace owner, so API testing does not distort user credit counters, and also does not exercise the enforcement path.
 - Auditing usage: `user_get` exposes the per-deployment `uses[]` array. A user's real total is the sum across deployments, and a per-deployment counter pinned at exactly the cap value means enforcement fired.
+- The deployment record carries the cap itself as `usageLimit`, where `-1337` is the sentinel for unlimited (178 of 193 deployments in one workspace), alongside a `limitFunnelType` of `pickaxe` or `none`. Read it from `deployment_list` when auditing which tools are actually capped, and remember that list overflows MCP clients on big workspaces (api-mechanics reference).
 
 ## SSO identity and monetization paths
 

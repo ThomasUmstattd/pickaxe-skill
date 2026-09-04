@@ -1,0 +1,22 @@
+[
+  {"query": "my pickaxe bot keeps telling people it only got the first few pages of the manuscript they uploaded. the tool is called Manuscript Doctor in my studio. can you figure out whats going on and fix it", "should_trigger": true},
+  {"query": "I need to add one line to the system prompt on three of my Pickaxes banning em dashes. They're all in the same workspace and the MCP connection is already set up in this project. Go ahead.", "should_trigger": true},
+  {"query": "connect me to my pickaxe workspace. i have the api key copied from the settings page somewhere, and i'm using cursor not claude code", "should_trigger": true},
+  {"query": "Set up a way to back up every bot config from pickaxe.co into this git repo so I can see when a prompt actually changed. There are about 40 bots.", "should_trigger": true},
+  {"query": "Our Studio chatbot has around 400 PDFs attached and since last week it answers like it has no documents at all. Nobody on our side changed anything. Where do I even start?", "should_trigger": true},
+  {"query": "before I push this rewritten prompt to the live tool I want to compare it against the current one on a few real customer inputs. how do we do that on pickaxe without touching the bot customers are using", "should_trigger": true},
+  {"query": "a customer emailed that our logo generator says 'access denied' when she clicks the finished image. it's a pickaxe embed on our wordpress site with the GPT image action attached", "should_trigger": true},
+  {"query": "write a python script that runs run_pickaxe_completion once per row of inputs.csv and saves each response to outputs/. the bot id is in config.json in this folder", "should_trigger": true},
+  {"query": "add an optional form field to the Blurb Writer pickaxe asking for the author's target reader, and make sure the prompt actually uses it when it's filled in", "should_trigger": true},
+  {"query": "can u check why my pickaxe form tool suddenly won't accept .docx uploads from users? the error message only lists pdf and txt but it worked last month", "should_trigger": true},
+  {"query": "write me a python function for my minecraft mod that returns the best pickaxe enchantment combo given a list of block types and a mining speed target", "should_trigger": false},
+  {"query": "Draft a system prompt for a customer support assistant on OpenAI's Assistants API that answers only from our uploaded help docs and refuses everything else", "should_trigger": false},
+  {"query": "Cloudflare Rocket Loader is breaking an inline Stripe snippet on my WordPress checkout page. What do I change on the script tag so it loads normally?", "should_trigger": false},
+  {"query": "set up the GitHub MCP server in my cursor config, I've got a personal access token with repo scope ready to paste in", "should_trigger": false},
+  {"query": "Compare Claude Sonnet and GPT-5 pricing per million tokens for a summarization workload that runs about 2M input tokens a month, and tell me which is cheaper", "should_trigger": false},
+  {"query": "build a quote-anchored answer key for grading the summaries our in-house RAG pipeline (langchain plus pinecone) produces from this PDF in docs/whitepaper.pdf", "should_trigger": false},
+  {"query": "my custom GPT in chatgpt keeps ignoring the instruction never to reveal its system prompt when people ask nicely. how do I harden it?", "should_trigger": false},
+  {"query": "I run a Patreon for authors and want to gate a members-only resources page on WordPress behind a patron login. Which plugin should I use and how do I set it up?", "should_trigger": false},
+  {"query": "the `pickaxe` package in our node monorepo fails to build after the node 22 upgrade with 'ERR_REQUIRE_ESM'. here's the stack trace from packages/tools/pickaxe", "should_trigger": false},
+  {"query": "our zapier automation that posts each new blog post to three social accounts times out at 30 seconds on the image step. how should I restructure it so it finishes?", "should_trigger": false}
+]

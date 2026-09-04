@@ -1,17 +1,21 @@
 ---
 name: pickaxe
 description: >-
-  Build, update, test, and debug AI tools on the Pickaxe.co platform through
-  its hosted MCP server or HTTP JSON-RPC API. Use this skill whenever the user
-  mentions Pickaxe, pickaxe.co, Pickaxe Studio, a Pickaxe workspace, or any
-  work on Pickaxes, prompts, prompt frames, form fields, knowledge bases,
-  documents, actions, deployments, access groups, or credits on the platform,
-  including first-time MCP connection setup, staging a prompt change, or
-  grading a Pickaxe's output. Consult it before any Pickaxe write operation,
-  because the platform has silent-failure traps that make writes look
-  successful when they did nothing, and before diagnosing a user complaint
-  about a Pickaxe, because the most common causes are input caps and
-  configuration rather than the prompt.
+  Required first step for any task that touches the Pickaxe.co AI-tool
+  platform (Pickaxe Studio), even when the MCP connection is already set up
+  and the task looks like a one-line edit, because writes can silently fail
+  and every prompt edit hits the live bot immediately. Covers building,
+  editing, and configuring Pickaxes (prompts, prompt frames, form fields,
+  knowledge bases and documents, actions, deployments, access groups,
+  credits), connecting to a workspace for the first time, safely testing or
+  comparing prompt versions without affecting live users, grading a Pickaxe's
+  output, and diagnosing any misbehaving Pickaxe that end users interact with:
+  a bot ignoring its attached documents, rejecting file uploads, reading only
+  part of an upload, inventing answers, or showing access denied inside an
+  embed on a customer site. If the user's tool, chatbot, or workspace lives on
+  pickaxe.co, use this skill, whether building, changing, testing, or
+  troubleshooting it. Not for the npm pickaxe package, Minecraft, or other
+  chatbot platforms.
 ---
 
 # Working with Pickaxe
@@ -30,7 +34,7 @@ If no Pickaxe MCP server is configured, or calls fail with authorization errors,
 
 **2. Never trust a mutation's return value. Read state back.** Mutations can return success while doing nothing, return a different envelope shape than reads, or succeed while a client helper throws. After every write, fetch the state you changed and confirm it, one field at a time, because one call can save two fields and discard a third. `references/api-mechanics.md` has the specific traps.
 
-**3. Large payloads need the HTTP fallback.** MCP client layers can reject large tool arguments (an 18KB role field is enough) before they ever reach Pickaxe. Call `https://mcp.pickaxe.co` directly with HTTP JSON-RPC for big writes. `scripts/pickaxe_client.py` implements the pattern.
+**3. Client-layer failures need the HTTP fallback, and they are not only large payloads.** MCP client layers can reject large tool arguments (an 18KB role field is enough) before they ever reach Pickaxe, and they can also fail to serialize a 352-byte call. An `InputValidationError` or parse error on a Pickaxe tool is deterministic, so never resend it unchanged. Call `https://mcp.pickaxe.co` directly with HTTP JSON-RPC instead. `scripts/pickaxe_client.py` implements the pattern.
 
 **4. The knowledge base has two layers.** Adding a document to the workspace does not attach it to any bot. A document can be fully embedded and still invisible to the Pickaxe it was meant for. `references/knowledge-base.md` explains the attach step and how to verify it.
 
