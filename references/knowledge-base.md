@@ -18,6 +18,14 @@ For attachments:
 
 Citation eligibility is a separate check. API/batch-created documents arrived with `isCitable` unset, and `document_get` omitted the flag. Read it through `document_list` or `pickaxe_documents`. The tested `document_update` rejected it alone and silently discarded it alongside a valid title change. The Studio's Enable citing control supported a bulk operation. Check current supported API operations first, then use the permitted Studio path and read every changed flag back.
 
+## RSS Auto Sync
+
+Enable **Auto Sync** on an RSS Feed source for daily syncing. Pickaxe reported this feature available on September 16, 2026, and a builder confirmed it working on September 17. Sync appends new feed items to the knowledge base and retains URLs that disappear from the feed. This supersedes the earlier one-time-import behavior.
+
+Use the RSS Feed source for this append-only behavior. The older workaround of adding a feed URL as a website with auto-sync had different retention: items could leave the knowledge base when they left the feed window.
+
+To check a particular setup, confirm Auto Sync is enabled and look for a newly published item after a sync cycle using the paginated document inventory. Verify the target bot's attachment and citation state too. The feature confirmation does not establish how those settings propagate or how edits to existing feed items are handled.
+
 ## Import and copy boundaries
 
 `document_create` accepted 4.0 MB and rejected 5.2 MB in a size probe. Split below the observed ceiling on meaningful content boundaries. Base64 increases payload size and is not a solution to a server request-size limit.
