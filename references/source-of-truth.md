@@ -1,43 +1,30 @@
-# Config as code: a git source of truth for Pickaxe
+# Config history and concurrent edits
 
-Pickaxe keeps no config history. There is no audit trail, no versioning, and no undo for a bad prompt write. `pickaxe_history` is chat transcripts, not config. If you manage more than a handful of tools, export every config to a git repository and make that the source of truth.
+Keep a versioned snapshot if you need prompt history or rollback. The tested Pickaxe chat-history endpoints did not provide configuration history.
 
-## The export pattern
+## Exports
 
-A script (run on a schedule, or at the start of every working session) that:
+Before building an exporter, evaluate the [official Pickaxe CLI](https://pickaxe.co/learn/cli), which now documents pulling a local workspace. Confirm it covers the fields, attachments, redaction, and diff requirements you need. Its documentation alone does not establish those properties.
 
-1. Lists every Pickaxe in the workspace.
-2. Fetches each full config.
-3. Writes each to its own directory: `pickaxes/<tool-slug>/config.json` plus `pickaxes/<tool-slug>/role.md` with the system prompt split out as readable Markdown.
-4. Commits nothing by itself. The git diff after an export IS the report of what changed on the platform since the last export.
+For a custom export, list and fetch the intended bots, then write a stable per-bot config plus readable prompt files. Keep export separate from committing and publishing. A diff can show what changed since the last snapshot, but it cannot assign authorship or date an unobserved intermediate change.
 
-This gives you change detection, rollback material, code review on prompts, and a way to notice when someone or something edited a live tool.
+Strip volatile data that obscures config changes:
 
-## Strip volatile fields, or the diffs are worthless
+- Use counters, update/request timestamps, IP addresses, and credentials.
+- Per-document refresh/reindex bookkeeping such as last-used time, embedding job IDs/status timestamps, and runtime flags.
 
-The raw API response includes fields that change on every run or every day with no real config change. Left in, they bury real changes under noise and train you to skim diffs. Strip them at export time.
+Keep content-change evidence such as `contentHash`. Sort document arrays and ID sets by stable keys where order has no behavioral meaning. Exclude scratch/staging bots by a documented naming or ID rule. Include retained source content only if the repository's privacy and permissions allow it.
 
-Two classes to strip:
+Review the first export for nested secrets and private data before committing. A field named `apikey` is one known source, not an exhaustive redaction list.
 
-- **Top-level churn**: use counters (`usestoday`, `usestotal`), timestamps (`updatedAt`, `timestamp`), request metadata (`ip_address`), and anything secret-shaped (`apikey`).
-- **Per-document bookkeeping** inside the documents array: `lastUsedAt`, `lastRefreshAt`, `updatedAt`, `isRunning`, `chunkCount`, and the whole `embeddingFill*` family (status timestamps, job ids, attempt counters). These move when a user runs the tool or when the platform reindexes, with no content change. Keep `contentHash`: it is the honest signal that a document's content actually changed.
+## Remote concurrency
 
-The general principle travels beyond Pickaxe: when exporting any platform's state into git, classify every field as config (keep), content signal (keep), or operational bookkeeping (strip). Do it on day one, because retrofitting it means one giant reformat commit.
+Separate worktrees protect local files, not a shared live Pickaxe. Read the live object before an edit, compare it with the basis of the change, and refuse on drift. Use provider conditional updates if available. A pre-write check narrows the race but does not make an unconditional remote update atomic.
 
-## Sort unstable arrays
+Take a fresh rollback snapshot before promotion. A stale export or whole-field draft can silently revert someone else's changes. Reconcile drafts after live edits, or mark them superseded and identify the authoritative source.
 
-The API returns document arrays in unstable order. Unsorted, a mere reorder diffs every line of a 1,000-document array. Sort documents and id arrays by a stable key before writing, and use `sort_keys` on the JSON dump.
+Examine actual content rather than `updatedAt` when diagnosing prompt history. Nightly platform processes have changed timestamps without changing prompts. Re-read inconsistent local state too, especially in synchronized folders.
 
-## Exclude staging bots
+## Using the snapshot
 
-If you keep staging Pickaxes (testing reference), give them a recognizable name prefix and have the export skip them. Staging bots churn by design, and their diffs would pollute the history of the real tools.
-
-## What git does not protect
-
-The repo is a mirror, not a lock. Two people or two agent sessions can still write the same live Pickaxe at the same time, and git knows nothing about it. The protection for that lives in write scripts: re-fetch the live state, verify it matches what you based your edit on, and refuse to write on drift. Combined with the export diff, this turns silent concurrent clobbers into loud refusals.
-
-The clobber also arrives on a delay, and the delayed form is easier to miss. A prompt field is replaced whole on write, with no merge step, so a full copy of a field kept as a draft file is a loaded clobber. Re-applying it weeks later silently reverts every live edit made since the draft was last synced, and the reverting commit's diff shows nothing, because the draft file itself did not change. After any live prompt edit, re-sync every draft file that mirrors the edited field so it stays byte-identical, or mark the drifted section superseded and name the live field as authoritative. A whole-field draft is a mirror that must be maintained, not an archive that is safe to leave stale.
-
-## Bonus: the repo becomes context
-
-An exported `role.md` per tool doubles as onboarding context for AI coding sessions. A session assigned to improve one tool reads that tool's export instead of pulling the live config, and the diff against the export shows exactly what the session changed.
+A tool's exported prompt is useful onboarding context for a review. Refresh the relevant remote state before using that export as the basis for a live write. Track deployment and attachment changes when they affect the tested behavior, since a prompt-only diff cannot explain every regression.

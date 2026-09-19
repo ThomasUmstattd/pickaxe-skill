@@ -12,23 +12,23 @@ Teach your AI assistant to build Pickaxe tools like it has been doing it for mon
 
 ## What is a skill?
 
-A skill is a folder of instructions that AI coding assistants read on their own. Claude Code, Codex, Cursor, Grok Build, and Grok Bot all use the same format. You install it once with a single command, and from then on your assistant consults it whenever your conversation touches Pickaxe. There is no code to run and nothing to configure.
+A skill is a folder of instructions that an AI coding assistant can consult when working on Pickaxe. This one includes reference notes and an optional Python helper. Install the skill, then connect your assistant to the intended workspace.
 
-If you have never installed a skill before, this is a good first one. The install is one copy-paste, and the payoff shows up in your very next conversation.
+The instructions cover platform behavior that a general-purpose assistant may not know. The helper needs only Python's standard library.
 
 ## Why you want it
 
 Your assistant already knows what [Pickaxe](https://pickaxe.co) is. Here is what it does not know:
 
-- **Every prompt write hits your live bot.** Pickaxe has no draft mode, so an assistant "iterating" on your prompt is editing what your users see, right now.
+- **A prompt write changes the targeted bot.** An assistant testing a variant on a public bot changes what its users receive. Use a private staging copy for those experiments.
 - **The platform can report success on a write that did nothing.** Some fields accept your change, return success, and silently discard it. Some tools crash naive scripts on calls that actually succeeded, so an assistant can "fix" 80 things that were never broken.
-- **Input caps truncate silently.** A form field cap can feed your bot one page of a 300-page manuscript, and the bot analyzes that page in perfect confidence. Your user is told the analysis covered the book.
+- **Input caps can truncate silently.** Check configuration and actual source coverage before blaming the model for a partial read.
 - **Adding a document does not attach it.** A file can sit in your workspace, fully processed, and stay invisible to the bot it was uploaded for.
-- **Long runs die at exactly 300 seconds** with an error that reads like an outage. Retrying will never help, and an assistant that does not know the ceiling will retry all night.
+- **A timeout can leave a completed, charged answer.** Recover history and measured telemetry before retrying. The tested workspace completion path also had a 300-second server ceiling.
 
-Without the skill, your assistant discovers each of these the hard way, on your live tools, while your customers are using them. With it, your assistant arrives already knowing the traps, verifies every change by reading it back, and tests on a staging copy before touching anything live.
+The guide explains staging, readback, real-upload tests, and the difference between a successful request and a useful result. It also covers membership changes that can reset credits, measured costs, and grading against source evidence.
 
-Everything in the skill comes from months of production work on a workspace of 80+ live Pickaxe tools. Every claim was observed on the real platform and carries the date it was observed.
+The platform observations come from production work in August and September 2026. The guide distinguishes those observations from test techniques, unresolved behavior, and newer official documentation. Check the relevant path when the platform changes.
 
 ## Install
 

@@ -12,7 +12,7 @@ The key is a workspace API key, and the page it lives on is easy to miss.
 4. Below the key table, expand the panel labeled **Connect an MCP client**.
 5. Click **Copy setup**. The UI masks the key on screen, so use what the copy button gives you.
 
-Keys start with `studio-`. Each key is scoped to one workspace, so managing two workspaces means two keys and two MCP server entries.
+Workspace keys start with `studio-` and each reaches one workspace. One named connection per workspace keeps selection explicit. The current MCP documentation also describes account-level Personal API Keys and deployment tokens. Choose the narrowest credential that covers the task and verify its identity before writing.
 
 Mind the hostnames. The builder and its settings live at `pickaxe.co/user/dashboard`. The similarly named `studio.pickaxe.co` serves the public guest portal, not the builder, so directions pointing there dead-end (observed August 2026). And the API endpoint is exactly `https://mcp.pickaxe.co` with no path: appending `/mcp` fails.
 
@@ -34,7 +34,7 @@ claude mcp add --transport http --scope user pickaxe-other "https://mcp.pickaxe.
 
 ## Connect Cursor
 
-Add the server to `.cursor/mcp.json` in the project, or `~/.cursor/mcp.json` for all projects. VS Code and other JSON-configured clients use the same shape:
+Add the server to `.cursor/mcp.json` in the project, or `~/.cursor/mcp.json` for all projects. Other clients should use their own generated setup snippet:
 
 ```json
 {
@@ -81,5 +81,6 @@ Call `studio_whoami` with no arguments. A healthy connection returns the workspa
 The key grants full write access to the workspace, including live public tools. Treat it like a production credential.
 
 - Never commit it. Scripts should read it from the MCP client config or an environment variable, not from source.
-- `scripts/pickaxe_client.py` in this skill reads the key from `PICKAXE_API_KEY` or from the `mcpServers` entry in `~/.claude.json`, in that order.
+- `scripts/pickaxe_client.py` uses `PICKAXE_API_KEY` only for the default server named `pickaxe`. For a named server, it reads that exact `mcpServers` entry in `~/.claude.json` or `~/.cursor/mcp.json`, without falling back to the generic environment key.
+- Python callers can pass `token="Bearer ..."` to `call` or `run_completion` from their own secure credential source. The helper does not read Codex TOML or project-local configs. No credential is printed or required in source code.
 - If a key leaks, rotate it from the same Workspace API Keys page.

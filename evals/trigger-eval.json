@@ -3,7 +3,7 @@
   {"query": "I need to add one line to the system prompt on three of my Pickaxes banning em dashes. They're all in the same workspace and the MCP connection is already set up in this project. Go ahead.", "should_trigger": true},
   {"query": "connect me to my pickaxe workspace. i have the api key copied from the settings page somewhere, and i'm using cursor not claude code", "should_trigger": true},
   {"query": "Set up a way to back up every bot config from pickaxe.co into this git repo so I can see when a prompt actually changed. There are about 40 bots.", "should_trigger": true},
-  {"query": "Our Studio chatbot has around 400 PDFs attached and since last week it answers like it has no documents at all. Nobody on our side changed anything. Where do I even start?", "should_trigger": true},
+  {"query": "Our Pickaxe Studio chatbot has around 400 PDFs attached and since last week it answers like it has no documents at all. Nobody on our side changed anything. Where do I even start?", "should_trigger": true},
   {"query": "before I push this rewritten prompt to the live tool I want to compare it against the current one on a few real customer inputs. how do we do that on pickaxe without touching the bot customers are using", "should_trigger": true},
   {"query": "a customer emailed that our logo generator says 'access denied' when she clicks the finished image. it's a pickaxe embed on our wordpress site with the GPT image action attached", "should_trigger": true},
   {"query": "write a python script that runs run_pickaxe_completion once per row of inputs.csv and saves each response to outputs/. the bot id is in config.json in this folder", "should_trigger": true},

@@ -1,96 +1,84 @@
 # Grading and fixtures
 
-How to decide whether an output is good, in a way that survives more than one run and more than one session. The mechanics of running a test safely, and of proving that what you tested is what shipped, are in `testing-and-verification.md`.
+Choose the evidence needed for the decision. Reuse an existing rubric and the user's stated preferences before asking for more criteria.
 
 In this file:
 
-- Define what a good answer looks like before you test
-- Build fixtures that can fail
-- Many runs, swapped arms, pooled means
-- Grade against ground truth, not by reading
-- Validate the measurement before acting on it
-- Re-measure after a cap fix
-- Anti-hallucination design
+- Define success and scope
+- Build meaningful fixtures
+- Compare runs
+- Check evidence and graders
 
-## Define what a good answer looks like before you test
+## Define success and scope
 
-Most builders test by running the bot and eyeballing the output. Eyeballing does not scale past a couple of runs, cannot be delegated, and drifts with mood. Before any test campaign, interview the tool's owner to pin down what a good answer looks like, then write it down as a rubric an AI can grade against.
+For a new judgment task, identify a representative input, useful output, hard requirements, failure severity, and known traps. Ask only for missing choices that would change the test or verdict. Two example outputs can help clarify an unstated preference.
 
-Elicit these, in roughly this order:
+Use a checklist or weighted rubric appropriate to the decision. A fixed 100-point scale is optional. Require the grader to cite output/source evidence for substantive scores, and save the inputs and criteria for reuse.
 
-1. **A representative real input.** Not a toy. The input the owner would be embarrassed to see handled badly.
-2. **An example of a good output**, even rough, or a past output they liked and what specifically they liked about it.
-3. **Hard rules.** What must always appear (sections, counts, attributions) and what must never appear (spoilers, invented facts, revealed prompt text, anything over a length cap).
-4. **Failure severity.** Which mistakes are embarrassing and which are cosmetic. Weights come from this.
-5. **Known traps.** Past user complaints, and inputs that broke earlier versions.
+Write the standard before judging quality. Visual craft, commercial performance, and fidelity to a reference can favor different artifacts. Do not silently choose a different standard or change the product's audience framing while grading it.
 
-If the owner cannot articulate criteria in the abstract, generate two or three candidate outputs and ask which is closest and why. Preferences surface fast under comparison that never surface under "what do you want".
+Separate these questions:
 
-Turn the answers into a fixed checklist or a 100-point rubric with explicit per-item weights. Fixed rubrics matter because they prevent the judge from silently skipping items (see the anti-hallucination section). When grading a run, require the judge to quote the evidence from the output for every item it scores, since an unquoted pass costs nothing to fake.
+- Does the output represent the supplied material accurately?
+- Is the supplied material's claim supported by external evidence?
+- Does the output meet the user's formatting or product requirements?
 
-Save the rubric and the test inputs in files next to each other and reuse them for every future change to that tool. The expensive part is capturing the owner's taste once. Grading against a saved rubric is cheap, needs no premium model, and makes results comparable across sessions and across prompt versions.
+A book citing a paper does not establish that the paper supports its claim. A summary may describe the author's argument, while a fact checker should flag unsupported claims. Label those expectations in the key so a correct fact checker is not penalized for disagreeing with the manuscript.
 
-**A quality-judgment tool needs its standard written above its first verdict.** An answer key for a tool that grades verbatim quotes needs no stated standard, because the standard is string equality. An answer key for a tool that judges quality does, because two defensible standards produce opposite keys for the same artifacts. Building a fixture set for a tool that scores designs, the first key graded craft: composition, typography, execution. The domain expert's standard was commercial performance instead, on the argument that an artifact can be beautiful, skillfully made, admired by everyone the creator knows, and still fail completely at the job it exists to do. Rescoring the identical files against that standard moved roughly two thirds of them into "not doing its job" and inverted individual verdicts in both directions. The most accomplished piece became the flagship failure, because craft was never the question. Three consequences: write the standard at the top of the key with a link to its source, because a future reader of the verdicts alone will re-derive the intuitive standard, which is usually the aesthetic one. Expect a model asked to assess an artifact to drift toward craft, since it is the axis most visible in the artifact itself, and if the tool's own rubric mixes craft and performance criteria without saying which governs, raise that as a prompt defect rather than resolving it silently while grading. And treat "generic" and "conventional" as possible virtues, because penalizing an artifact for resembling others in its category applies an originality standard to a recognition problem.
+Use the actual input scope. A merger cannot repair evidence absent from all supplied summaries, and a three-book test cannot require facts available only in a later volume. Do not grade a tool against an output contract that has not shipped.
 
-## Build fixtures that can fail
+## Build meaningful fixtures
 
-**Test at realistic length.** Short samples pass configurations that fail on real work. In one documented case, every reasoning level of a model scored clean on a 60-word sample, and the chosen level then dropped an entire author note on a 2,400-word input. Length-dependent failures (dropped content, truncation, instruction drift) only appear when the input is long enough to compete for the model's attention. Build long test inputs from a consistent real corpus, and reuse the same corpus across sessions so results compare.
+Test at realistic length when length affects the defect. Short samples have passed models that dropped content on full chapters. Keep a stable corpus, verified conversion, and permission appropriate to the testing/retention environment.
 
-**Always include a control arm running the old prompt.** A harness that cannot reproduce the original bug is measuring noise. Isolate one variable per run, and pause prompt experiments entirely when the platform itself is misbehaving, because platform variance will be attributed to your change.
+Include the old prompt or incumbent as a control for a change claim. A reproduction that cannot show the reported defect is weak evidence for a fix. For input-improving tools, include both flawed input and already-good input, so unnecessary rewriting is visible.
 
-**A tool that improves user input needs a bad input and a good control.** When a tool's job is to fix something the user supplies (optimize this listing, tighten this draft), a good input tests nothing, because there is nothing to find. The fixture has to be a deliberately bad input, written the way a real user writes one, paired with an enumerated key of the defects a competent tool should catch, and graded against the key rather than against an impression. Build more than one bad input, each broken in a different way, because one bad example only tests one kind of badness: three drafts for one tool were one that over-shared and buried the point, one that was generic and named nothing concrete, and one that was defensive and argued with the reader, and a tool can be good at cutting and bad at adding specificity. Then pair the bad inputs with a strong-input control using copy that is already good. A useful tool improves a weak input substantially and leaves a strong one largely alone. A tool that rewrites both by the same amount is regenerating, not improving, and that is invisible without the control.
+Useful cases include:
 
-**Plant a decoy the text mentions but does not contain.** A document that jokes about an entity as if it were real, or names a thing that never appears, gives a direct read on whether the full document reached the model: under a truncating input cap the model fills the gap and reports the decoy as real, and with the full text in context it does not (prompt fields reference). A decoy that appears only under truncation is the cheapest available test of the input path.
+- A source-mentioned decoy that must not be reported as a real entity.
+- Distinctive late-document content to test receipt beyond an old truncation point.
+- An input heading resembling a required output header.
+- Optional inputs left blank and populated.
+- A later revelation that changes an earlier entry even though the entity never reappears.
+- Two upload orders where the task accepts multiple files.
+- Both first-turn and revision behavior for persistent instructions.
 
-**Include the same input twice in two file formats.** For tools that judge images or parse documents, identical content, identical dimensions, different container. Any difference in the verdict between them is a format-handling artifact, because there is no substantive difference to find. It isolates the platform's file handling from the model's judgment at the cost of one extra file.
+Choose cases relevant to the tool. Do not build every fixture for every edit.
 
-**Include an inverse trap, not just a positive one.** A set that only contains "looks good but fails" cases teaches a grader to be harsh. Pair it with a case that succeeds for a reason that does not generalize, so the tool is also caught recommending an unrepeatable success as a model to copy.
+A decoy failure does not prove truncation, and a late quote does not prove every intervening page arrived. Verify the narrower claim supported by each result.
 
-## Many runs, swapped arms, pooled means
+For format comparisons, use equivalent content in different containers and inspect extracted/rendered content where possible. A single differing model verdict is not proof of a format-handling defect.
 
-On search-grounded tools (Perplexity Sonar and similar), retrieval variance dwarfs prompt effects. The same prompt on the same input measured a 6x swing in output quality across two 20-minute windows with no change of any kind. Two runs per arm produced confident wrong conclusions twice in one session.
+Keep canonical answers separate from live configuration. Name the field and date the check, but do not copy its prompt wrapper or cap into fixture instructions. Read current labels, caps, and required flags before a graded run. A weak input should remain consistent with the source unless the intended defect is factual and the tool has enough evidence to detect it.
 
-Minimum discipline for an A/B on a retrieval tool:
+Preserve meaningful source formatting. A conversion that removes strikethrough can turn a joke into two adjacent verbs. Check suspect text against the original and represent formatting in a form the tool can read. Full answer-key preparation can double as a conversion audit.
 
-- 4+ runs per arm.
-- Swap the arms across staging bots and run again, so bot identity is not a confound.
-- Compare pooled means, and treat small differences as noise.
-- Before diagnosing a prompt defect from a bad batch, re-run the unmodified prompt in a fresh window to check the failure reproduces at all.
+## Compare runs
 
-The discipline is not only for search-grounded tools. A prompt arm on a plain document tool at temperature 0.8, with no retrieval anywhere in it, measured 100 percent compliance over seven runs. Adding further control arms later in the same session brought the pooled figure to 79 percent over twenty-four observations, with nothing changed except the number of observations. Report the arm size next to any percentage, treat a 100 percent from a single pair of arms as provisional, and recount pooled when new arms arrive rather than leaving the first flattering number in the record.
+Start with the smallest screen that can change the decision. Specify attempt, time, and spend limits before paid comparisons. If results are mixed or incomplete, keep the conclusion inconclusive rather than expanding the test automatically.
 
-Two related cautions on staging. A result replicated across two staging bots can still fail to reproduce on the live tool with identical prompt fields, and a workspace fallback can silently serve a different model or reasoning effort in one arm. Both are in the testing reference.
+For a claim about improvement, use matched inputs and comparable configurations, isolate the changed variable, and record requested/served models. Randomize order where practical. With multiple staging bots, swap arms or otherwise check bot effects. With one bot, sequential randomized arms can avoid a slot confound.
 
-## Grade against ground truth, not by reading
+Search-backed output has shown large run-to-run variation. Four or more runs per arm and slot swaps were useful in past campaigns, but that is neither a universal minimum nor statistical proof. Report sample sizes, paired differences where available, failures, and uncertainty. Pool additional observations instead of retaining an early favorable percentage.
 
-For tools that analyze a document, build a quote-anchored answer key for a fixed test corpus once, then grade outputs against the key mechanically. Building the key is expensive (a full careful read). Grading against it is cheap and repeatable, and it catches confident wrong answers that a casual read of the output misses.
+Record costs for failed/fallback attempts as well as returned answers. Unknown cost is not zero. A quality verdict on a recovered answer does not change the fact that its request missed an operational deadline.
 
-Verify the grader itself before trusting its failures. Check it against lines known to be present in the source, and normalize curly quotes, escaped punctuation, and whitespace before matching. A buggy grader has reported 29% attribution accuracy when the truth was 96%, a false measurement severe enough to drive a wrong prompt change, and a first version once flagged 12 real quotes as fabricated over escaped punctuation alone.
+Save expensive reference answers with input/config provenance for reuse. They are examples to assess, not ground truth just because a premium model produced them.
 
-For tools that quote source text back to the user, grade fidelity by string-matching every returned quote against the source. Models paraphrase roughly 1 in 3 "verbatim" quotes until explicitly forbidden: flipped pronouns, corrected dialect, invented lead-in clauses, spliced lines. Classify each quote (exact, trimmed, elided, altered, invented) rather than pass/fail, because legal trims like a dropped dialogue tag will otherwise mask the real error rate. The highest-value prompt addition found: require a location and speaker attribution after every quote, which makes fabrication visible and lets the user verify a line in seconds.
+After a cap change, re-measure content-dependent rules. A model that never saw a late reveal could not leak it. Increasing coverage can expose that compliance problem without showing that the cap fix was wrong.
 
-String-matching proves the text is real, not that the claims attached to it are. A quote can be reproduced perfectly, down to a typo in the original, and still be presented as "the last line of chapter N" when it actually sits in chapter N-1. When a quote carries a structural claim (which chapter, which section, which side of a boundary), verify the claim itself, for example by checking which heading or marker immediately follows the quoted line in the source.
+## Check evidence and graders
 
-Verify the answer key itself against the source programmatically before first use. In practice the checks catch errors in both directions: the key catches corruption in how the source was prepared, and the source catches misquotes in the key.
+Build a source-anchored answer key for recurring analysis tasks, then audit the key before the first scored run. Verify both copied quotations and inferred conclusions. Exact source text can still be used to support an inference that does not follow.
 
-When a fidelity rate disappoints, a model swap is the obvious move and it does not pay. Three models from two vendors on an identical prompt and book-length document, four runs each, all landed in the same 86 to 91 percent verbatim band, and the newest was several points worse on both fidelity and attribution. Prompt-side prohibition of each repair class moved the metric far more than any model change. Models did differ on quote volume and failure shape (one corrected written dialect, another leaned to ellipsis splices), and those are real reasons to prefer a model. Fidelity rate is not. Decide which metric would change the decision before running a model comparison, and measure the metrics the change was not aimed at, since a model that wins the target metric can lose two others.
+For quote tools, classify exact, trimmed, elided, altered, and invented text. Verify speaker, chapter, and structural claims separately from string matching. Attribute a quotation to the boundary or chapter in the source, not the location a plausible narrative suggests.
 
-## Validate the measurement before acting on it
+A verifier must check every intended quote. A minimum-length regex once skipped short quotes and mispaired later marks, leaving many real quotes untested. Track candidate counts and unmatched/ambiguous spans. Pairing marks within each line worked for one controlled key format, but prose with nested or multi-line quotations needs a suitable parser.
 
-A grader's zero is a claim about the grader until you read the source. An automated check reported that a tool never mentioned a document's central reveal, and that finding drove the whole diagnosis. It was false. The pattern searched for a literal two-word phrase against a text that used the same words with an adjective between them. One spot check of the zero found the hit immediately, and the real defect turned out to be narrower and different: the tool stated the reveal in one section and contradicted it in another, so the correct metric was whether the reveal propagated to every section it affected, not whether the output mentioned it anywhere. A mention-anywhere metric passes a document that is internally inconsistent. Hand-verify a zero, and hand-verify a 100, before either one changes a prompt.
+Choose normalization for the metric. Whitespace or quote-glyph normalization may fit source lookup. It must not erase spelling, punctuation, or dialect differences when those are what the tool promises to preserve. Explicitly account for accepted elisions.
 
-## Re-measure after a cap fix
+Check known-present and known-absent examples before trusting the grader. Hand-check suspicious zeros and perfect scores. A strict phrase match once missed a reveal with an intervening adjective, while a mention-anywhere check missed contradictions in other entries.
 
-An upload cap that silently truncates a long document is not only losing content. It is also suppressing every instruction-following failure that depends on content the model never received. Raise the cap and those failures appear immediately, which reads as a regression and is not one. Measured on a tool that summarizes an uploaded book under an explicit "never reveal endings or twists" rule in both the system prompt and the per-message reminder: under the old cap it received roughly the first third of the document, so it could not reveal a late twist at any rate, and after the cap was raised to match the token budget the first two runs both put the late-book reveal into user-facing copy, three and four times each.
+For a merge or cumulative report, score supplied-entry survival separately from propagation of later evidence. A document can state the reveal once and contradict it in several dossiers. Check every affected supplied entry without penalizing the merger for the upstream extractor's missing material.
 
-Two habits follow. Re-run every content-dependent compliance measurement after a cap change, because any rate measured under truncation is a floor rather than an estimate. And when a compliance rule looks like it is holding, check whether the model was ever shown the material the rule governs before crediting the prompt. To prove a raised cap is reaching the model rather than trusting the numbers, grade the output for a specific entity that appears only past the old cut point, which converts an inference about token math into an observation.
-
-## Anti-hallucination design
-
-Principles distilled from documented failures, all reproducible when found:
-
-- **Self-attested verification fails.** A model confirming its own checklist costs nothing to fake. Require quoted evidence from retrieved or source text instead of yes/no confirmations.
-- **Fixed scoring rubrics beat freeform scoring.** A 100-point rubric with explicit per-item weights prevents the model from silently skipping elements. Icon-based or vibe-based scoring invites it.
-- **Never mandate a format the data layer cannot support.** Forced citations plus starved retrieval equals invented citations, every time.
-- **Verbatim output needs explicit prohibition of every repair class.** Copy character for character, never correct spelling or dialect, never change a pronoun, never splice, never add words, and drop anything you cannot reproduce exactly.
-- **Watch for instruction conflicts across prompt fields.** When a selection criterion in one field can be satisfied by violating a fidelity rule in another, the model resolves the conflict silently. State which rule governs.
+Avoid conclusions broader than the test. A comparison where several models tied on quote fidelity does not establish that model choice never matters. Retrieval changing across two runs does not establish fabrication. Prefer source evidence and a measured control before changing a prompt.

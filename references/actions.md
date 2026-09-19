@@ -1,48 +1,51 @@
 # Actions
 
-Actions are the tool calls a Pickaxe can make: web search, image generation, custom API calls. They have their own quirks, and one of the platform's nastier silent failures lives here.
+Observed August–September 2026. Check the current action definition and attachment state before changing it.
 
-## Structural facts
+## Attachments, triggers, and keys
 
-- **Four actions per Pickaxe, maximum.** A workflow that needs more gets split into a waterfall of routed Pickaxes, each within the limit.
-- **Trigger conditions live in two places, and both matter.** Describe when and why to fire the action in the Role field, and also fill the action's own trigger prompt field in the Actions tab. Either one alone under-triggers.
+The tested per-Pickaxe limit was four actions. Reduce unnecessary calls first. A larger workflow may need routed Pickaxes, with latency and billing checked across the full route.
 
-## Replacing a manifest silently resets the trigger prompt
+Define action purpose and conditions in the Role and the attachment's trigger prompt. Replacing a manifest through `action_update_manifest` reset customized attachment triggers to a generic default. Read and restore the intended triggers for affected attachments after a manifest change.
 
-`action_update_manifest` replaces the action definition, and doing so resets the attachment-level trigger prompt on connected Pickaxes back to a generic default. The attachment trigger lives outside the manifest, so the replace does not know it is destroying customization. After any manifest replace, re-check and restore the trigger prompt on every Pickaxe that uses the action. Observed August 2026.
+`isUsingPickaxeCredits` belongs to the attachment. The same action can use different billing credentials on different bots.
 
-## Credit-backed vs own-key actions
+| Attachment | Staging implication |
+|---|---|
+| Credit-backed | Set `isUsingPickaxeCredits: true` when connecting so Pickaxe supplies its managed provider key. |
+| Own-key | Readback masks the stored secret. Copying that masked value cannot reproduce the attachment. Use an authorized secret source or the Studio's key control. |
+| Keyless built-in | Can avoid key provisioning, but a different backend is a different test configuration. |
 
-Every action attachment is one of two kinds, and the `isUsingPickaxeCredits` flag tells them apart:
+Connecting without required credentials returned `Variable <NAME> is required`. Do not interpret a keyless failure as a prompt defect.
 
-- **Credit-backed** (`isUsingPickaxeCredits: true`): Pickaxe injects its own managed provider key and bills through platform credits. These can be copied between Pickaxes programmatically, but the flag must be set on `action_connect`. Connecting without it fails with `Variable OpenAI API Key is required` or similar.
-- **Own-key**: the attachment holds your provider API key. The API returns stored keys **masked**, so an own-key attachment cannot be copied to another Pickaxe programmatically. `action_connect` without the key value fails with `Variable <NAME> is required`, and the value is unrecoverable over the API. Reattaching is a manual step in the Studio UI.
+Switching an existing own-key attachment to platform credits worked through disconnect/reconnect, with the credit flag both top-level and inside `data` over JSON-RPC. Confirm the current schema. Record action settings and trigger text first, then verify the reconnected state and a permitted run. The trigger survived the observed switch, but do not rely on that for rollback. Disconnecting can lose the original stored key, and this switch changes billing, so it must fall within the user's requested change.
 
-This matters most for staging copies: a cloned bot starts with no working own-key actions, so action-dependent tools cannot be benchmarked end to end without a manual key attach first. A keyless run is still useful for isolating what the knowledge base contributes and for exercising the no-search failure path.
+The Studio's deactivate toggle preserved keys for temporary action experiments. Use it when available instead of detaching a keyed action. A prompt asking the model not to call an action is not an enforcement toggle.
 
-A third kind exists and is easy to overlook: some built-in platform actions attach with no key at all (a built-in web search, a current-time action). When staging a search-dependent tool, check for a keyless equivalent before waiting on a key handoff. One caveat: benchmarks run on one search backend do not validate another, so either test on the backend the live tool uses or switch the live tool to the backend you tested.
+The action catalog was account-wide in September cross-workspace tests, and the same credit-backed action ID attached in another workspace on that account. Verify availability and settings on the target. Documents have different scope rules.
 
-## Deactivate, do not detach
+## New actions
 
-The Studio UI can toggle an attached action off without removing it, which preserves the stored key. Use the toggle for single-backend experiments on a tool with multiple keyed actions. Detach and reattach loses the key, and muting via the trigger prompt only steers the model rather than gating the action. The toggle appears to be UI-only.
+For a requested custom action, Pickaxe's [Wingman](https://pickaxe.co/learn/wingman) accepts a specification of purpose, endpoint, parameters, credentials, and response handling. Use the supported builder or API that fits the task. Put credentials in its secret control, not in a prompt or committed manifest.
 
-## Building new actions
+## Image inputs and results
 
-Pickaxe ships an action builder called Wingman (https://pickaxe.co/learn/wingman) that creates an action from a single prompt. For a new custom action, write a complete Wingman prompt describing the action's name, endpoint, parameters, auth variable, and response handling, then paste it into Wingman and add the API key in the Studio UI. This beats hand-building manifests over the API, and it keeps provider keys out of chat logs and terminals.
+The tested embed appended successful image-action results as native inline asset cards with download/copy controls. A prompt requiring the model to write `![alt](URL)` was unnecessary there and produced a fabricated URL after an action refusal. Check the target surface before imposing an output-link format.
 
-## Image actions return public CDN files
+For that native-card surface, keep the reply short and let the platform attach the image. On refusal or failure, report the failure and a relevant next step without claiming an image exists. If another consumer needs a URL, use the actual action result, never a guessed path.
 
-Built-in image generation actions do not return a provider blob that expires or needs auth. They return a Pickaxe-hosted file at `cdn.mail.studio/action_generated_files/` (PNG in the measured case), and HEAD and GET on those URLs minutes after generation were public HTTP 200 with no cookies and no redirect into a login wall (August 2026, longer TTL unmeasured). Inspect the actual URL the action returned before diagnosing provider-side expiry, signed-URL lifetime, or a 403. An orchestrator model that "generated an image" only called the action, and the pixels live on Pickaxe's CDN. Two follow-ons: a user's "access denied" on a clicked image is usually a portal lockout page rather than the file (testing reference), and an orchestrator that returns a working file wrapped in a markdown hyperlink instead of an inline image needs the hyperlink banned in the Role and the Reminder (prompt fields reference).
+Successful action files were publicly retrievable on Pickaxe's CDN shortly after generation. Long-term retention was not measured. Inspect the exact returned URL and the failing request path before blaming expiry. A guest portal's upgrade page can say “Access denied” even when the file is available.
 
-## `action_runs` tells you whether an action fired, not how long it took
+A tested image upload reached an image-editing action with source layout preserved across six first runs, and a follow-up retained the reference. That supports that action/input path, not a guarantee for every upload or model. To diagnose fidelity, separate the orchestrator's reading, action arguments, and image output.
 
-`action_runs` takes `actionId` (required) and an optional `limit`. Each run carries `status`, `parsedArgs`, `sessionId`, and a `content` field holding the action's return value as a Python-repr dict string (single quotes, not JSON), which `ast.literal_eval` parses when you need structured fields. It is the fastest way to confirm that an action ran and what it returned on a given session.
+The orchestrator chose the image action's `aspect_ratio` unless instructed. A tested portrait 2:3 requirement yielded 1024×1536 outputs. Specify the intended format and verify resulting dimensions for print/display tools. Test revisions too: content rules can hold on the first image and fail later.
 
-There is no duration, latency, or start-and-end timestamp pair on a run. `createdAt` and `updatedAt` are identical on every observed row, so they mark when the record was written, not how long the action took. Per-message timing lives in the Studio's Message Insights panel and is not reachable over the API, so wall-clock on `run_pickaxe_completion` minus an approximate action timestamp is the only way to split fetch time from model time when debugging an action-heavy tool against the completion ceiling.
+## Action runs and timing
 
-## Budget the latency
+`action_runs` accepted `actionId` plus optional `limit`. Observed rows included status, parsed arguments, session ID, and a content string containing a Python-repr result. Parse that format with `ast.literal_eval`, not `eval`, when needed.
 
-Actions bill and stall in ways that break tools (see the limits reference for the hard timeout):
+The observed rows had no action-duration field, and equal `createdAt`/`updatedAt` timestamps were not latency measurements. Message Insights now provides per-answer timing and cost, but do not assume it isolates each action's duration. See [API mechanics](api-mechanics.md).
 
-- Measure your per-call latency before designing multi-call workflows. A search action averaging 30 seconds per call cannot fit 8 to 12 calls under a 300-second ceiling.
-- Built-in platform actions that use Pickaxe's own keys are not free. Token costs bill through at cost.
+A completion's `success: true` can wrap an apology after a failed action. Check the run status, returned asset, or embed before counting it as a successful image generation. Action diagnostics can work even when transcript history is unavailable.
+
+Measure latency before designing loops. Sequential searches can exhaust the completion budget. Batch related queries where supported, and check both quality and measured cost. Platform-managed keys still bill credits.

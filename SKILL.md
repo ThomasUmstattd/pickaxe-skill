@@ -1,7 +1,7 @@
 ---
 name: pickaxe
 description: >-
-  Required first step for any task that touches the Pickaxe.co AI-tool
+  Use for any task that touches the Pickaxe.co AI-tool
   platform (Pickaxe Studio), even when the MCP connection is already set up
   and the task looks like a one-line edit, because writes can silently fail
   and every prompt edit hits the live bot immediately. Covers building,
@@ -20,50 +20,35 @@ description: >-
 
 # Working with Pickaxe
 
-Pickaxe (pickaxe.co) is a platform for building and selling AI tools. Each tool is a "Pickaxe" with a prompt, a model, an optional form, an optional knowledge base, and optional actions. The platform exposes a hosted MCP server at `https://mcp.pickaxe.co` that also answers plain HTTP JSON-RPC, so nearly everything the Studio UI can configure is scriptable. A few fields are UI-only and silently ignore API writes, see `references/api-mechanics.md`.
+Use this field guide for Pickaxe-specific behavior that ordinary API or prompt-writing knowledge misses. Observations come from production work in August and September 2026. Check current schemas and the relevant runtime path when a decision depends on an old observation.
 
-This skill is a field guide built from months of production work on a large Pickaxe workspace. Every claim was observed on the live platform. Observations are dated because the platform changes fast, so re-verify anything load-bearing before you depend on it.
+## Working rules
 
-## Not connected yet?
+- **Test prompt variants on a private copy.** A prompt write changes the targeted bot. Completion `pickaxeConfig` carries business metadata, not a shadow prompt. A review or diagnosis does not authorize a production edit.
+- **Verify effects.** Fetch written fields and coupled settings. Refuse stale whole-field writes. For a visible change, check the rendered surface too: stored values can fail to render.
+- **Match the test to the input path.** `message` bypasses the form prompt. `inputs` exercises it with supplied text. Real uploads also exercise file parsing. Caps can truncate, but a low cap alone does not prove truncation.
+- **Check attachments and retrieval.** Creating a workspace document does not attach it to a bot. Verify the attachment set, citation flags where needed, and retrieval evidence.
+- **Bound paid work.** Agree on the decision and useful test size. Track attempts, elapsed time, and measured cost. Recover an uncertain completion before retrying it. Missing telemetry is unknown cost.
+- **Treat membership assignment as a wallet mutation.** Assigning even the same group has reset usage and extra credits. Read current membership and skip users already enrolled.
 
-If no Pickaxe MCP server is configured, or calls fail with authorization errors, read `references/getting-connected.md`. The API key lives on a settings page that is genuinely hard to find, and that file walks through it.
+## Read for the task
 
-## The five rules that prevent the worst failures
-
-**1. Every prompt write hits the live bot.** `run_pickaxe_completion` has a `pickaxeConfig` parameter, and it does NOT override the prompt. There is no shadow mode. Iterating on a prompt means writing to whatever bot you target, so iterate on a private staging copy and apply the final version to the live tool once.
-
-**2. Never trust a mutation's return value. Read state back.** Mutations can return success while doing nothing, return a different envelope shape than reads, or succeed while a client helper throws. After every write, fetch the state you changed and confirm it, one field at a time, because one call can save two fields and discard a third. `references/api-mechanics.md` has the specific traps.
-
-**3. Client-layer failures need the HTTP fallback, and they are not only large payloads.** MCP client layers can reject large tool arguments (an 18KB role field is enough) before they ever reach Pickaxe, and they can also fail to serialize a 352-byte call. An `InputValidationError` or parse error on a Pickaxe tool is deterministic, so never resend it unchanged. Call `https://mcp.pickaxe.co` directly with HTTP JSON-RPC instead. `scripts/pickaxe_client.py` implements the pattern.
-
-**4. The knowledge base has two layers.** Adding a document to the workspace does not attach it to any bot. A document can be fully embedded and still invisible to the Pickaxe it was meant for. `references/knowledge-base.md` explains the attach step and how to verify it.
-
-**5. Input caps truncate silently, and truncation fabricates.** New Pickaxes default to a 250-token chat input limit. Form fields and upload fields carry their own `answerlength` caps that quietly cut off user input, and the model never knows text is missing. A bot fed one page of a book will invent the rest. Check the caps before blaming the model for shallow or invented output. `references/prompt-and-form-fields.md` covers the fields.
-
-## Reference map
-
-Read the file that matches the task. Each is self-contained and opens with a list of its sections.
-
-| File | Read it when |
+| Reference | Use for |
 |---|---|
-| `references/getting-connected.md` | Setting up the MCP connection for the first time, or auth is failing |
-| `references/api-mechanics.md` | Calling any tool: envelopes, create/update mechanics, completion testing, the public completions endpoint, HTTP fallback |
-| `references/prompt-and-form-fields.md` | Editing prompts, form fields, input limits, or converting form tools to chat |
-| `references/knowledge-base.md` | Documents, embeddings, RAG behavior, retrieval problems |
-| `references/actions.md` | Attaching, building, copying, or debugging actions |
-| `references/limits-and-costs.md` | Timeouts, upload restrictions, credit caps, access groups, cost architecture, embedding on WordPress |
-| `references/testing-and-verification.md` | Staging a change safely, verifying writes and form changes, transports, the platform signals that mislead diagnosis |
-| `references/grading-and-fixtures.md` | Deciding whether output is good: rubrics, test fixtures, run counts, ground-truth grading, anti-hallucination design |
-| `references/source-of-truth.md` | Putting Pickaxe configs under git, clean diffs, recovering from bad edits |
+| [Getting connected](references/getting-connected.md) | Credentials, workspace identity, first connection |
+| [API mechanics](references/api-mechanics.md) | Payloads, errors, completions, session and Insights recovery |
+| [Prompts and fields](references/prompt-and-form-fields.md) | Prompt lifetimes, frames, caps, form/chat settings |
+| [Knowledge base](references/knowledge-base.md) | Pagination, attachments, citations, retrieval |
+| [Actions](references/actions.md) | Keys, triggers, image results, action failures |
+| [Limits and costs](references/limits-and-costs.md) | Timeouts, billing, user credits, upload limits |
+| [Testing](references/testing-and-verification.md) | Staging parity, uploads, runtime verification |
+| [Grading](references/grading-and-fixtures.md) | Rubrics, fixtures, controls, source support |
+| [Source of truth](references/source-of-truth.md) | Exports, clean diffs, rollback, concurrent edits |
 
-## The helper script
+Read the relevant references rather than the whole library. Reuse existing rubrics and user decisions.
 
-`scripts/pickaxe_client.py` is a dependency-free Python client for the HTTP JSON-RPC path. Use it instead of hand-rolling a request helper, because hand-rolled copies drift. One project had three scripts with three slightly different helpers, and a crash-on-success bug fixed in one copy survived in the other two. Code enforces invariants that documentation only suggests.
+## HTTP fallback
 
-Run a tool call from the shell:
+Use the configured MCP connection first. If its client cannot serialize valid arguments, use the dependency-free `scripts/pickaxe_client.py`. Check the payload before changing transports: missing `data` can also cause a 422.
 
-```bash
-python3 scripts/pickaxe_client.py pickaxe_list '{}'
-```
-
-Or import it: `from pickaxe_client import call, run_completion`. `run_completion` takes either a `message` string or an `inputs` dict keyed by the form's field ids, and the two are different code paths on the platform (testing reference).
+The helper supports JSON-RPC calls and completions, with one completion attempt by default. `PICKAXE_API_KEY` applies only to the default server. Named servers require their own configuration or an explicit Python `token=`. See the connection reference for examples.
